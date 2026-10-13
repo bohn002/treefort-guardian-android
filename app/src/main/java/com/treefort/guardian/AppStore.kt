@@ -35,7 +35,10 @@ enum class MessageKind { Info, Success, Danger }
 data class StoreMessage(val text: String, val kind: MessageKind = MessageKind.Info, val id: Long = System.nanoTime())
 
 /** Message text from a failed [Result] (always user-safe: it came from [ApiException] or a fixed string). */
-val Result<*>.errorText: String get() = exceptionOrNull()?.message ?: "Something went wrong. Try again."
+val Result<*>.errorText: String get() = exceptionOrNull()?.errorText ?: "Something went wrong. Try again."
+
+/** Same for the Throwable handed to `onFailure`. */
+val Throwable.errorText: String get() = message ?: "Something went wrong. Try again."
 
 /**
  * The app's single source of truth. Everything comes from the backend API (TreeFortApi) using the
