@@ -1,35 +1,25 @@
 package com.treefort.guardian.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-
-private val TreeFortColorScheme = lightColorScheme(
-    primary = GuardianBlue,
-    secondary = TreeFortGreen,
-    tertiary = SunburstAmber,
-    background = CanvasBg,
-    surface = CardBg,
-    onPrimary = CardBg,
-    onSecondary = Ink,
-    onTertiary = Ink,
-    onBackground = Ink,
-    onSurface = Ink
-)
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 
 @Composable
-fun TreeFortGuardianTheme(
-    content: @Composable () -> Unit
-) {
-    val defaultFontFamily = if (ThemeConfig.isBoringTextEnabled) FontFamilyTreeFortBook else FontFamilyTreeFortClubhouse
+fun TreeFortGuardianTheme(content: @Composable () -> Unit) {
+    val system = isSystemInDarkTheme()
+    SideEffect { if (ThemeConfig.systemDark != system) ThemeConfig.systemDark = system }
+
+    val dark = ThemeConfig.isDark
     MaterialTheme(
-        colorScheme = TreeFortColorScheme,
-        typography = Typography
+        colorScheme = TreeFortTokens.colorScheme(dark),
+        typography = TreeFortTokens.typography(plain = ThemeConfig.isBoringTextEnabled),
     ) {
-        androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.material3.LocalTextStyle provides androidx.compose.ui.text.TextStyle(
-                fontFamily = defaultFontFamily
-            )
+        CompositionLocalProvider(
+            LocalTreeFortColors provides TreeFortTokens.colors(dark),
+            LocalTextStyle provides Tf.body,
         ) {
             content()
         }

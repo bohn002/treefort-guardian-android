@@ -2,48 +2,62 @@ package com.treefort.guardian.theme
 
 import androidx.compose.ui.graphics.Color
 
-// TreeFort 18-Color Design Token Registry
+// All values come from the generated TreeFortTokens.kt (DESIGN.md). Nothing here defines a hex literal.
+// Identity colors (brand palette, same in light and dark):
 
-// Foundations & Surfaces
-val ColorInk = Color(0xFF1C1E1D)
-val ColorPlastic = Color(0xFFF6F4EE)
-val ColorPlasticDark = Color(0xFFE6E2D6)
-val ColorSlateMid = Color(0xFF556E7B)
+private val P = TreeFortTokens.Palette
 
-// Primary Action: Blue
-val ColorPrimaryBlue = Color(0xFF3A8BFF)
-val ColorBluePowder = Color(0xFF89C2FF)
-val ColorBlueDeep = Color(0xFF194E9A)
+val ColorInk = P.Ink
+val ColorPlastic = P.Plastic
+val ColorPlasticDark = P.PlasticDark
+val ColorSlateMid = P.SlateMid
+val ColorPrimaryBlue = P.PrimaryBlue
+val ColorBluePowder = P.BluePowder
+val ColorBlueDeep = P.BlueDeep
+val ColorWarningYellow = P.WarningYellow
+val ColorYellowPale = P.YellowPale
+val ColorYellowAmber = P.YellowAmber
+val ColorSafeGreen = P.SafeGreen
+val ColorGreenMint = P.GreenMint
+val ColorGreenForest = P.GreenForest
+val ColorDangerRed = P.DangerRed
+val ColorRedCrimson = P.RedCrimson
+val ColorRetroGrape = P.RetroGrape
+val ColorRustyOrange = P.RustyOrange
+val ColorEarthBrown = P.EarthBrown
+val ColorWhite = P.White
 
-// Warning / Warmth: Yellow
-val ColorWarningYellow = Color(0xFFFFC43A)
-val ColorYellowPale = Color(0xFFFFE79A)
-val ColorYellowAmber = Color(0xFFCA8A04)
+// Semantic colors follow light/dark mode. They read ThemeConfig.isDark (snapshot state), so any
+// composable that uses them recomposes when the mode changes.
+private val sem: TreeFortColors get() = TreeFortTokens.colors(ThemeConfig.isDark)
 
-// Safe / Online: Green
-val ColorSafeGreen = Color(0xFF3DCC79)
-val ColorGreenMint = Color(0xFF82EBB0)
-val ColorGreenForest = Color(0xFF1B6E3D)
+val Ink: Color get() = sem.text
+val BorderInk: Color get() = sem.border
+val CanvasBg: Color get() = sem.canvas
+val CardBg: Color get() = sem.surface
+val RaisedBg: Color get() = sem.surfaceRaised
+val PillBg: Color get() = sem.surfaceSunken
+val MutedText: Color get() = sem.textSecondary
+val DisabledText: Color get() = sem.textDisabled
+val DisabledFill: Color get() = sem.fillDisabled
+val DividerColor: Color get() = sem.divider
+val OnAccent: Color get() = sem.onAccent
+val LinkColor: Color get() = sem.link
 
-// Danger / Urgent: Red
-val ColorDangerRed = Color(0xFFFF5E3A)
-val ColorRedCrimson = Color(0xFFB82A1B)
+val SuccessPale: Color get() = sem.successPale
+val SuccessFg: Color get() = sem.successFg
+val WarningPale: Color get() = sem.warningPale
+val WarningFg: Color get() = sem.warningFg
+val DangerPale: Color get() = sem.dangerPale
+val DangerFg: Color get() = sem.dangerFg
+val InfoPale: Color get() = sem.infoPale
+val InfoFg: Color get() = sem.infoFg
+val PrimarySoft: Color get() = sem.primarySoft
+val PrimaryFg: Color get() = sem.primaryFg
 
-// Playful & Natural Accents
-val ColorRetroGrape = Color(0xFF7A3EE4)
-val ColorRustyOrange = Color(0xFFE86C2D)
-val ColorEarthBrown = Color(0xFF8C5E3B)
-
-// Legacy / Component Aliases
-val Ink = ColorInk
-val CanvasBg = ColorPlastic
-val CardBg = Color(0xFFFFFFFF)
-val PillBg = ColorPlasticDark
-val MutedText = ColorSlateMid
-
+// Brand fills used as button and chip backgrounds.
 val TreeFortGreen = ColorSafeGreen
 val GuardianBlue = ColorPrimaryBlue
 val SunburstAmber = ColorWarningYellow
-val TerracottaCoral = ColorDangerRed
 val AlertRed = ColorDangerRed
 val ForestGreen = ColorGreenForest

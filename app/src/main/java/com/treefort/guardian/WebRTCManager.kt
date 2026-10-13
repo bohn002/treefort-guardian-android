@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationCompat
+import com.treefort.guardian.api.Ipv4FirstDns
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,9 @@ import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import java.util.concurrent.TimeUnit
+
+/** Safelist name and avatar for a dial code. */
+data class PeerInfo(val name: String, val icon: String? = null, val color: String? = null)
 
 sealed class CallState {
     object Idle : CallState()
@@ -55,14 +59,21 @@ object WebRTCManager {
         
     private var webSocket: WebSocket? = null
     
-    var myDialCode: String = "*38912"
-    val isEmulator: Boolean = android.os.Build.FINGERPRINT.startsWith("generic") ||
-            android.os.Build.MODEL.contains("google_sdk") ||
-            android.os.Build.MODEL.contains("Emulator")
-    var signalingHost: String = "api.treefort.kids"
-    var authToken: String? = null
-    var allowedDialCodes: Set<String> = setOf("*10001", "*38912", "*14185", "*14186", "*24819", "*49102", "*90001", "*58291", "*58292", "*58293")
+    /** This account's own TreeFort number from `POST /api/user/app-dial-code`. Empty until signed in. */
+    var myDialCode: String = ""
+
+    /** Supplies a fresh Supabase access token at every (re)connect; tokens expire hourly. */
+    var tokenProvider: () -> String? = { SupabaseManager.accessToken() }
+
+    /** Name shown to the other side; the backend still derives identity from the verified token. */
+    var callerName: String = "TreeFort Guardian"
+
+    /** Resolves a dial code to a Safelist name and avatar for incoming calls. */
+    var peerResolver: (String) -> PeerInfo? = { null }
+
     var activeTargetDialCode: String? = null
+
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
     
     private val _callState = MutableStateFlow<CallState>(CallState.Idle)
     val callState: StateFlow<CallState> = _callState.asStateFlow()
@@ -75,10 +86,10 @@ object WebRTCManager {
     val isMuted = MutableStateFlow(false)
     val isSpeakerOn = MutableStateFlow(false)
     val callDurationSeconds = MutableStateFlow(0)
-    var activePeerName by androidx.compose.runtime.mutableStateOf("Kid's Bedroom")
-    var activePeerEmoji by androidx.compose.runtime.mutableStateOf("☎️")
-    var activePeerBg by androidx.compose.runtime.mutableStateOf("#FFC72C")
-    var activePeerDialCode by androidx.compose.runtime.mutableStateOf("*14185")
+    var activePeerName by androidx.compose.runtime.mutableStateOf("")
+    var activePeerIcon by androidx.compose.runtime.mutableStateOf<String?>(null)
+    var activePeerColor by androidx.compose.runtime.mutableStateOf<String?>(null)
+    var activePeerDialCode by androidx.compose.runtime.mutableStateOf("")
     
     private var localAudioTrack: org.webrtc.AudioTrack? = null
     private var timerJob: kotlinx.coroutines.Job? = null
@@ -156,32 +167,35 @@ object WebRTCManager {
         Log.i(TAG, "WebRTC PeerConnectionFactory initialized.")
     }
 
-    fun connectSignaling(host: String = signalingHost, dialCode: String = myDialCode, token: String? = null) {
-        if (isConnecting && dialCode == myDialCode && host == signalingHost && token == null) {
+    private var currentDialCode: String = ""
+
+    /**
+     * Connects the signaling socket for this account's own TreeFort number. The Supabase access
+     * token (fresh at every connect) rides as `?ticket=` and as a Bearer header; the backend binds
+     * the socket to the account that owns [dialCode].
+     */
+    fun connectSignaling(dialCode: String = myDialCode) {
+        if (dialCode.isBlank()) return
+        val token = tokenProvider()
+        if (token.isNullOrBlank()) {
+            Log.w(TAG, "No access token yet; not connecting signaling")
+            return
+        }
+        if (isConnecting && dialCode == currentDialCode) {
             Log.i(TAG, "Signaling handshake already in progress for $dialCode; skipping duplicate connect")
             return
         }
         myDialCode = dialCode
-        signalingHost = host
-        if (token != null) {
-            authToken = token
-        }
+        currentDialCode = dialCode
         fetchIceServers()
-        
+
         webSocket?.close(1000, "Reconnecting")
         isConnecting = true
-        
-        val isPlainWs = host.contains("10.0.2.2") || host.contains("localhost") || host.contains("127.0.0.1") || host.startsWith("192.168.") || host.startsWith("10.") || host.contains(":8000") || host.contains(":8080") || host.contains(":3000")
-        val scheme = if (isPlainWs) "ws" else "wss"
-        val ticketParam = authToken?.takeIf { it.isNotBlank() }?.let { "?ticket=${java.net.URLEncoder.encode(it, "UTF-8")}" } ?: ""
-        val wsUrl = "$scheme://$host/ws/signal/$dialCode$ticketParam"
-        Log.i(TAG, "Connecting to signaling server at $scheme://$host/ws/signal/$dialCode")
-        
-        val reqBuilder = Request.Builder().url(wsUrl)
-        authToken?.takeIf { it.isNotBlank() }?.let {
-            reqBuilder.addHeader("Authorization", "Bearer $it")
-        }
-        val request = reqBuilder.build()
+
+        val wsUrl = "${AppConfig.wsBase}/ws/signal/$dialCode?ticket=${java.net.URLEncoder.encode(token, "UTF-8")}"
+        Log.i(TAG, "Connecting to signaling server for $dialCode")
+
+        val request = Request.Builder().url(wsUrl).addHeader("Authorization", "Bearer $token").build()
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
             private fun isCurrent(ws: WebSocket) = ws === this@WebRTCManager.webSocket
 
@@ -202,6 +216,7 @@ object WebRTCManager {
                 isConnecting = false
                 Log.e(TAG, "Signaling WebSocket failure: ${t.message}")
                 _isOnline.value = false
+                if (response?.code == 401 || response?.code == 403) return // signed out or not ours: do not hammer
                 reconnectSignalingWithDelay()
             }
 
@@ -218,6 +233,19 @@ object WebRTCManager {
         armHandshakeWatchdog(webSocket)
     }
 
+    /** Signed out: drop the socket and forget the account's number. */
+    fun disconnectSignaling() {
+        handshakeWatchdog.removeCallbacksAndMessages(null)
+        reconnectHandler?.removeCallbacksAndMessages(null)
+        webSocket?.close(1000, "Signed out")
+        webSocket = null
+        isConnecting = false
+        _isOnline.value = false
+        disconnect()
+        myDialCode = ""
+        currentDialCode = ""
+    }
+
     private val handshakeWatchdog = android.os.Handler(android.os.Looper.getMainLooper())
 
     /**
@@ -228,11 +256,11 @@ object WebRTCManager {
         handshakeWatchdog.removeCallbacksAndMessages(null)
         handshakeWatchdog.postDelayed({
             if (attempt != null && attempt === webSocket && isConnecting && !_isOnline.value) {
-                Log.w(TAG, "Signaling handshake stalled >4s for $myDialCode; retrying")
+                Log.w(TAG, "Signaling handshake stalled for $myDialCode; retrying")
                 webSocket = null
                 attempt.cancel()
                 isConnecting = false
-                connectSignaling(signalingHost, myDialCode, authToken)
+                connectSignaling(myDialCode)
             }
         }, 8000)
     }
@@ -240,6 +268,7 @@ object WebRTCManager {
     private var reconnectHandler: android.os.Handler? = null
 
     private fun reconnectSignalingWithDelay() {
+        if (myDialCode.isBlank()) return
         if (reconnectHandler == null) {
             reconnectHandler = android.os.Handler(android.os.Looper.getMainLooper())
         }
@@ -247,7 +276,7 @@ object WebRTCManager {
         reconnectHandler?.postDelayed({
             if (!_isOnline.value) {
                 Log.i(TAG, "Attempting signaling reconnection for $myDialCode...")
-                connectSignaling(signalingHost, myDialCode, authToken)
+                connectSignaling(myDialCode)
             }
         }, 3000)
     }
@@ -263,22 +292,15 @@ object WebRTCManager {
             when (json.optString("type")) {
                 "call_offer" -> {
                     val from = json.optString("from_dial_code", "Unknown")
-                    if (allowedDialCodes.isNotEmpty() && !allowedDialCodes.contains(from)) {
-                        Log.w(TAG, "Blocked incoming call_offer from unauthorized dial code: $from")
-                        sendSignaling(JSONObject().apply {
-                            put("type", "call_rejected")
-                            put("target_dial_code", from)
-                            put("from_dial_code", myDialCode)
-                            put("reason", "Caller not in safelist")
-                        })
-                        return
-                    }
-                    val callerName = json.optString("caller_name", from)
+                    // The backend already decided this caller may reach us; the Safelist only supplies a friendly name.
+                    val known = peerResolver(from)
+                    val callerName = known?.name ?: json.optString("caller_name", from)
                     val sdp = json.optString("sdp")
                     activeTargetDialCode = from
                     activePeerName = callerName
                     activePeerDialCode = from
-                    activePeerEmoji = "📞"
+                    activePeerIcon = known?.icon
+                    activePeerColor = known?.color
                     _callState.value = CallState.Incoming(from, callerName)
                     showIncomingCallNotification(callerName, from)
                     setupPeerConnection()
@@ -323,46 +345,25 @@ object WebRTCManager {
     )
 
     fun fetchIceServers() {
-        val isPlain = signalingHost.contains("10.0.2.2") || signalingHost.contains("localhost") || signalingHost.contains("127.0.0.1") || signalingHost.startsWith("192.168.") || signalingHost.contains(":8000")
-        val scheme = if (isPlain) "http" else "https"
-        val url = "$scheme://$signalingHost/api/webrtc/ice-servers"
-        val request = Request.Builder().url(url).build()
-        httpClient.newCall(request).enqueue(object : okhttp3.Callback {
-            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+        scope.launch {
+            try {
+                val servers = com.treefort.guardian.api.TreeFortApi.iceServers().mapNotNull { item ->
+                    if (item.urls.isEmpty()) return@mapNotNull null
+                    val builder = PeerConnection.IceServer.builder(item.urls)
+                    if (!item.username.isNullOrBlank() && !item.credential.isNullOrBlank()) {
+                        builder.setUsername(item.username)
+                        builder.setPassword(item.credential)
+                    }
+                    builder.createIceServer()
+                }
+                if (servers.isNotEmpty()) {
+                    cachedIceServers = servers
+                    Log.i(TAG, "Loaded ${servers.size} dynamic ICE servers including TURN relay.")
+                }
+            } catch (e: Exception) {
                 Log.w(TAG, "Failed to fetch dynamic ICE servers: ${e.message}")
             }
-            override fun onResponse(call: okhttp3.Call, response: Response) {
-                response.body?.string()?.let { bodyStr ->
-                    try {
-                        val json = JSONObject(bodyStr)
-                        val arr = json.optJSONArray("ice_servers") ?: return
-                        val servers = mutableListOf<PeerConnection.IceServer>()
-                        for (i in 0 until arr.length()) {
-                            val item = arr.getJSONObject(i)
-                            val urls = item.optJSONArray("urls") ?: continue
-                            val user = item.optString("username", "")
-                            val cred = item.optString("credential", "")
-                            val urlList = mutableListOf<String>()
-                            for (j in 0 until urls.length()) {
-                                urlList.add(urls.getString(j))
-                            }
-                            val builder = PeerConnection.IceServer.builder(urlList)
-                            if (user.isNotBlank() && cred.isNotBlank()) {
-                                builder.setUsername(user)
-                                builder.setPassword(cred)
-                            }
-                            servers.add(builder.createIceServer())
-                        }
-                        if (servers.isNotEmpty()) {
-                            cachedIceServers = servers
-                            Log.i(TAG, "Loaded ${servers.size} dynamic ICE servers including TURN relay.")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Error parsing ICE servers: ${e.message}")
-                    }
-                }
-            }
-        })
+        }
     }
 
     private fun getWiFiIpAddress(): String? {
@@ -435,16 +436,17 @@ object WebRTCManager {
     }
 
     fun startCall(
-        targetDialCode: String = "*90001",
-        targetName: String = "Kid's Bedroom",
-        targetEmoji: String? = null,
-        targetBg: String? = null
+        targetDialCode: String,
+        targetName: String,
+        targetIcon: String? = null,
+        targetColor: String? = null,
     ) {
+        if (targetDialCode.isBlank() || myDialCode.isBlank()) return
         activeTargetDialCode = targetDialCode
         activePeerName = targetName
         activePeerDialCode = targetDialCode
-        activePeerEmoji = targetEmoji ?: if (targetDialCode.contains("90001")) "🔥" else "☎️"
-        activePeerBg = targetBg ?: "#FFC72C"
+        activePeerIcon = targetIcon
+        activePeerColor = targetColor
         _callState.value = CallState.Calling
         setupPeerConnection()
 
@@ -461,7 +463,7 @@ object WebRTCManager {
                                 put("type", "call_offer")
                                 put("target_dial_code", targetDialCode)
                                 put("from_dial_code", myDialCode)
-                                put("caller_name", "TreeFort Android Guardian")
+                                put("caller_name", callerName)
                                 put("sdp", sdp.description)
                             }
                             sendSignaling(msg)

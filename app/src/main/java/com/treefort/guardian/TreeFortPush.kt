@@ -7,21 +7,8 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import org.json.JSONObject
-import java.io.IOException
-
-/** Tries IPv4 first: broken home IPv6 routes otherwise cost ~connectTimeout per AAAA address. */
-object Ipv4FirstDns : okhttp3.Dns {
-    override fun lookup(hostname: String): List<java.net.InetAddress> =
-        okhttp3.Dns.SYSTEM.lookup(hostname).sortedBy { it is java.net.Inet6Address }
-}
+import com.treefort.guardian.api.TreeFortApi
+import kotlinx.coroutines.launch
 
 /**
  * FCM wake-up for incoming calls while the app is backgrounded, frozen, or the phone is locked.
@@ -34,11 +21,6 @@ object TreeFortPush {
     private const val TAG = "TreeFort-Push"
     private const val PREFS = "treefort_prefs"
     private const val KEY_DIAL_CODE = "push_dial_code"
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
-        .dns(Ipv4FirstDns)
-        .build()
-
     // Public client identifiers from the Firebase console (same values google-services.json carries).
     private val options = FirebaseOptions.Builder()
         .setApplicationId("1:605781285981:android:708295f33e0b19f60741b4")
@@ -63,7 +45,7 @@ object TreeFortPush {
             ensureFirebase(context)
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful && task.result != null) {
-                    Log.d(TAG, "FCM token acquired: ${task.result}")
+                    Log.d(TAG, "FCM token acquired")
                     registerToken(dialCode, task.result)
                 } else {
                     Log.w(TAG, "FCM token fetch failed: ${task.exception?.message}")
@@ -74,27 +56,24 @@ object TreeFortPush {
         }
     }
 
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
+    /** Registers the token for this account's own dial code only, with the Supabase bearer. Never for another number. */
     fun registerToken(dialCode: String, token: String) {
-        val host = WebRTCManager.signalingHost
-        val isPlain = host.startsWith("192.168.") || host.contains("localhost") || host.contains("10.0.2.2") || host.contains(":8000")
-        val url = "${if (isPlain) "http" else "https"}://$host/api/push/voip-token"
-        val body = JSONObject()
-            .put("dial_code", dialCode)
-            .put("voip_token", token)
-            .put("platform", "android")
-            .toString()
-            .toRequestBody("application/json".toMediaType())
-        val req = Request.Builder().url(url).post(body).apply {
-            WebRTCManager.authToken?.takeIf { it.isNotBlank() }?.let { header("Authorization", "Bearer $it") }
-        }.build()
-        http.newCall(req).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
+        if (dialCode.isBlank()) return
+        scope.launch {
+            try {
+                TreeFortApi.registerPushToken(dialCode, token)
+                Log.i(TAG, "FCM token registered for $dialCode")
+            } catch (e: Exception) {
                 Log.w(TAG, "FCM token registration failed: ${e.message}")
             }
-            override fun onResponse(call: Call, response: Response) {
-                response.use { Log.i(TAG, "FCM token registered for $dialCode (HTTP ${it.code})") }
-            }
-        })
+        }
+    }
+
+    /** Signed out: forget the number so a late token refresh cannot register for the previous account. */
+    fun clear(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_DIAL_CODE).apply()
     }
 }
 
@@ -113,9 +92,9 @@ class TreeFortMessagingService : FirebaseMessagingService() {
         WebRTCManager.initialize(applicationContext)
         WebRTCManager.showIncomingCallNotification(callerName, from)
         val dialCode = TreeFortPush.savedDialCode(this) ?: WebRTCManager.myDialCode
-        if (!WebRTCManager.isOnline.value) {
+        if (!WebRTCManager.isOnline.value && dialCode.isNotBlank()) {
             // Backend delivers the queued call_offer as soon as this socket connects
-            WebRTCManager.connectSignaling(dialCode = dialCode)
+            WebRTCManager.connectSignaling(dialCode)
         }
     }
 }

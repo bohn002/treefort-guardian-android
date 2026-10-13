@@ -14,21 +14,11 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    val prefs = getSharedPreferences("treefort_prefs", MODE_PRIVATE)
-    com.treefort.guardian.theme.ThemeConfig.isBoringTextEnabled = prefs.getBoolean("boring_text_enabled", false)
-    val savedRole = prefs.getString("active_role", ProfileRole.FAMILY_CALLER_ONLY.name)
-    val role = try {
-        ProfileRole.valueOf(savedRole ?: ProfileRole.FAMILY_CALLER_ONLY.name)
-    } catch (_: Exception) {
-        ProfileRole.FAMILY_CALLER_ONLY
-    }
-    AndroidProfileManager.activeRole = role
-    AndroidProfileManager.phoneTreeFortNumber = if (role == ProfileRole.FAMILY_CALLER_ONLY) "*38912" else "*10001"
-
+    AppPrefs.init(applicationContext)
     WebRTCManager.initialize(applicationContext)
-    val startDialCode = if (AndroidProfileManager.activeRole == ProfileRole.FAMILY_CALLER_ONLY) "*38912" else AndroidProfileManager.phoneTreeFortNumber
-    WebRTCManager.connectSignaling(dialCode = startDialCode)
-    TreeFortPush.init(applicationContext, startDialCode)
+    // Signed-in state, our own TreeFort number and signaling all come from the Supabase session
+    // (AppStore). Nothing is connected until an account is signed in.
+    AppStore.start(applicationContext)
     applyIncomingCallWindowFlags(intent)
 
     val permissionsToRequest = mutableListOf(android.Manifest.permission.RECORD_AUDIO)
@@ -65,9 +55,6 @@ class MainActivity : ComponentActivity() {
 
   override fun onResume() {
     super.onResume()
-    val activeDialCode = if (AndroidProfileManager.activeRole == ProfileRole.FAMILY_CALLER_ONLY) "*38912" else AndroidProfileManager.phoneTreeFortNumber
-    if (!WebRTCManager.isOnline.value) {
-      WebRTCManager.connectSignaling(dialCode = activeDialCode)
-    }
+    AppStore.onResume()
   }
 }
