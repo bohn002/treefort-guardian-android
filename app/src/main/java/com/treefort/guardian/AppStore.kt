@@ -114,6 +114,10 @@ object AppStore {
                 when (status) {
                     is SessionStatus.Authenticated -> if (phase == Phase.Starting || phase == Phase.SignedOut) bootstrap()
                     is SessionStatus.NotAuthenticated -> signedOut()
+                    is SessionStatus.NetworkError -> if (phase == Phase.Starting) {
+                        loadError = "Can't reach TreeFort. Check your connection and try again."
+                        phase = Phase.LoadFailed
+                    }
                     else -> Unit
                 }
             }

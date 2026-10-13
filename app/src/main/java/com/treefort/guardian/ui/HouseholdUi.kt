@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,7 +57,7 @@ fun MembersScreen() {
 
     ScreenColumn {
         SectionTitle(h.name)
-        Text("Guardians run the household together. Callers are adults with the app but no phone, like Uncle Bob: they can call and be called, and can't change anything.", style = Tf.body, color = MutedText)
+        Text("Guardians run the household together. Callers are adults with the app but no phone, like a faraway relative: they can call and be called, and can't change anything.", style = Tf.body, color = MutedText)
 
         SectionTitle("Guardians (${managers.size} of $MAX_GUARDIANS)")
         managers.forEach { MemberRow(it) { acting = it } }
@@ -243,7 +244,7 @@ fun EditMemberDialog(m: Member, onDismiss: () -> Unit) {
 @Composable
 fun JoinDialog(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var kind by remember { mutableStateOf(0) }
+    var kind by remember { mutableIntStateOf(0) }
     var code by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var icon by remember { mutableStateOf(TreeFortTokens.Avatar.DefaultIcon) }

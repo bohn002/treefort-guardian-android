@@ -222,7 +222,7 @@ fun InviteFriendDialog(onDismiss: () -> Unit) {
         val made = invite
         if (made == null) {
             Text("Make a code to send to a friend. When they accept it, you can call each other.", style = Tf.body, color = Ink)
-            TfTextField(alias, { alias = it }, "What do you call them?", placeholder = "Uncle Bob", enabled = !busy)
+            TfTextField(alias, { alias = it }, "What do you call them?", placeholder = "Grandpa Joe", enabled = !busy)
             ToggleRow(
                 "They don't have a TreeFort phone", "Let them join with just the app, as a caller. They can call and be called by your phones, and can't change anything.",
                 asCaller, { asCaller = it }, enabled = !busy,

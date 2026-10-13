@@ -31,6 +31,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -192,7 +193,7 @@ fun TimeField(label: String, value: String, onChange: (String) -> Unit, modifier
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateTimeField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
-    var stage by remember { mutableStateOf(0) }
+    var stage by remember { mutableIntStateOf(0) }
     var pickedDate by remember { mutableStateOf<LocalDate?>(null) }
     val current = runCatching { LocalDateTime.parse(value) }.getOrNull()
     Column(modifier, verticalArrangement = Arrangement.spacedBy(S.Xs)) {

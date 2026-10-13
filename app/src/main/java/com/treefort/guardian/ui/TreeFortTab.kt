@@ -93,7 +93,7 @@ private fun FirstRunCard(onClaim: () -> Unit, onJoin: () -> Unit) {
     }
 }
 
-/** A caller (app-only adult, e.g. Uncle Bob) sees only the phones they may call. */
+/** A caller (app-only adult, e.g. a relative) sees only the phones they may call. */
 @Composable
 private fun CallerHome() {
     val h = AppStore.selected ?: return

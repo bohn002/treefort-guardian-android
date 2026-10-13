@@ -34,7 +34,7 @@ private val FAQS = listOf(
     Faq("What is a TreeFort number?",
         "A short code that starts with * and has five digits, like *12345. Every TreeFort phone has one, and so does each guardian app. Regular phone numbers can't be added."),
     Faq("What is a caller?",
-        "A grown-up with the app and no phone, like Uncle Bob. Invite them from Friends and switch on \"They don't have a TreeFort phone\". Callers can call the household's phones and be called by them. They can't change anything."),
+        "A grown-up with the app and no phone, like a faraway relative. Invite them from Friends and switch on \"They don't have a TreeFort phone\". Callers can call the household's phones and be called by them. They can't change anything."),
     Faq("Can someone else help me manage the household?",
         "Yes. In Settings, open Guardians and callers and invite a co-guardian. A household can have up to 6 guardians and up to 50 callers. Owners can invite and remove guardians; at least one owner always stays."),
     Faq("What are Quiet Hours?",
