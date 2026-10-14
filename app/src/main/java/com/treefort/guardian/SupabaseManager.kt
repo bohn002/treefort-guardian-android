@@ -8,6 +8,11 @@ import io.github.jan.supabase.gotrue.providers.builtin.OTP
 import io.github.jan.supabase.gotrue.SessionStatus
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.gotrue.OtpType
+import io.github.jan.supabase.gotrue.SessionSource
+import io.github.jan.supabase.gotrue.providers.Apple
+import io.github.jan.supabase.gotrue.providers.Google
+import io.github.jan.supabase.gotrue.providers.builtin.IDToken
+import io.github.jan.supabase.gotrue.user.UserSession
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -55,6 +60,49 @@ object SupabaseManager {
     suspend fun verifyEmailCode(email: String, code: String) {
         client.auth.verifyEmailOtp(type = OtpType.Email.EMAIL, email = email, token = code)
     }
+
+    /**
+     * Native Google sign-in: the Google ID token (from Credential Manager) is exchanged for a Supabase
+     * session. Supabase verifies the token's audience against the client IDs set on its Google provider
+     * and the nonce against [rawNonce]. Lands in the same session flow as email sign-in.
+     */
+    suspend fun signInWithGoogleIdToken(idToken: String, rawNonce: String) {
+        client.auth.signInWith(IDToken) {
+            this.idToken = idToken
+            provider = Google
+            nonce = rawNonce
+        }
+    }
+
+    /**
+     * Web-based Apple sign-in (Android has no native Apple flow): opens Supabase's authorize URL in a
+     * Custom Tab. Apple returns to Supabase, which redirects to [OAuthConfig.CALLBACK_URL]; MainActivity
+     * hands that intent to [importOAuthCallback]. The redirect is passed per call so email sign-up
+     * keeps its own (Site URL) redirect.
+     */
+    suspend fun startAppleWebSignIn() {
+        client.auth.signInWith(Apple, redirectUrl = OAuthConfig.CALLBACK_URL)
+    }
+
+    /** Stores the session from the OAuth callback deep link (implicit flow fragment). */
+    suspend fun importOAuthCallback(fragment: String?, query: String?): Result<Unit> =
+        when (val r = OAuthConfig.parseCallback(fragment, query)) {
+            is OAuthConfig.CallbackResult.Error -> Result.failure(IllegalStateException(r.message))
+            OAuthConfig.CallbackResult.Empty -> Result.failure(IllegalStateException("Sign-in did not complete. Please try again."))
+            is OAuthConfig.CallbackResult.Tokens -> runCatching {
+                val user = client.auth.retrieveUser(r.accessToken)
+                client.auth.importSession(
+                    UserSession(
+                        accessToken = r.accessToken,
+                        refreshToken = r.refreshToken,
+                        expiresIn = r.expiresIn,
+                        tokenType = r.tokenType,
+                        user = user,
+                    ),
+                    source = SessionSource.External,
+                )
+            }
+        }
 
     suspend fun signOut() {
         client.auth.signOut()

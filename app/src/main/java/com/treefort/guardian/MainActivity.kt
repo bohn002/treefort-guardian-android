@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
     // (AppStore). Nothing is connected until an account is signed in.
     AppStore.start(applicationContext)
     applyIncomingCallWindowFlags(intent)
+    handleOAuthCallback(intent)
 
     val permissionsToRequest = mutableListOf(android.Manifest.permission.RECORD_AUDIO)
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -42,6 +43,14 @@ class MainActivity : ComponentActivity() {
     super.onNewIntent(intent)
     setIntent(intent)
     applyIncomingCallWindowFlags(intent)
+    handleOAuthCallback(intent)
+  }
+
+  /** `com.treefort.guardian://login-callback#access_token=...` from web-based Sign in with Apple. */
+  private fun handleOAuthCallback(intent: android.content.Intent?) {
+    if (intent?.action != android.content.Intent.ACTION_VIEW) return
+    val uri = intent.data ?: return
+    AppStore.handleOAuthIntent(uri.scheme, uri.host, uri.encodedFragment, uri.encodedQuery)
   }
 
   /** Only an incoming-call launch may appear over the keyguard; normal launches stay behind the lock. */

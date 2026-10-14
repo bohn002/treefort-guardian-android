@@ -30,6 +30,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.treefort.guardian.AppConfig
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.OAuthConfig
+import com.treefort.guardian.OAuthSignIn
 import com.treefort.guardian.errorText
 import com.treefort.guardian.theme.CardBg
 import com.treefort.guardian.theme.ColorPrimaryBlue
@@ -162,6 +164,7 @@ fun AuthScreen() {
                     }
                 }
             }
+            OAuthButtons(busy = busy, run = ::run, onError = { error = it })
             Text(
                 "Guardian accounts are for adults 18 and over. Kids never sign in: they use the TreeFort phone.",
                 style = Tf.bodySm, color = MutedText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
@@ -173,6 +176,41 @@ fun AuthScreen() {
                     ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(AppConfig.PRIVACY_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                 },
             )
+        }
+    }
+}
+
+/**
+ * Sign in with Google / Apple. A provider whose build flag is off renders nothing; one that is on but
+ * missing build settings renders disabled with the reason. A new account still has to pass
+ * [CertifyScreen] before any household data loads.
+ */
+@Composable
+private fun OAuthButtons(busy: Boolean, run: (suspend () -> Unit) -> Unit, onError: (String?) -> Unit) {
+    val cfg = remember { OAuthConfig.current }
+    if (!cfg.anyVisible) return
+    val ctx = rememberContext()
+    AppStore.oauthError?.let { Banner(it, kind = BannerKind.Danger) }
+    Text("or", style = Tf.bodySm, color = MutedText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    OAuthProviderButton("Sign in with Google", cfg.google, busy) {
+        AppStore.oauthError = null
+        run { AppStore.signInWithGoogle(ctx).onFailure { if (it !is OAuthSignIn.Cancelled) onError(it.errorText) } }
+    }
+    OAuthProviderButton("Sign in with Apple", cfg.apple, busy) {
+        AppStore.oauthError = null
+        run { AppStore.signInWithApple().onFailure { onError(it.errorText) } }
+    }
+}
+
+@Composable
+private fun OAuthProviderButton(label: String, availability: OAuthConfig.Availability, busy: Boolean, onClick: () -> Unit) {
+    when (availability) {
+        OAuthConfig.Availability.Off -> Unit
+        OAuthConfig.Availability.Ready ->
+            TactileButton(label, onClick, Modifier.fillMaxWidth(), backgroundColor = CardBg, enabled = !busy)
+        is OAuthConfig.Availability.Misconfigured -> Column(verticalArrangement = Arrangement.spacedBy(S.Xs)) {
+            TactileButton(label, {}, Modifier.fillMaxWidth(), backgroundColor = CardBg, enabled = false)
+            Text(availability.reason, style = Tf.bodySm, color = MutedText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
 }

@@ -297,6 +297,32 @@ object AppStore {
         Result.failure(authFailure(e, "That code didn't work. Check it and try again."))
     }
 
+    // OAuth (Google / Apple) ends in the same Supabase session as email: sessionStatus -> bootstrap(),
+    // which stops an uncertified account at Phase.NeedsCertify. Both are off unless the build flags them.
+
+    /** Last OAuth problem (e.g. from the Apple callback deep link), shown on the sign-in screen. */
+    var oauthError by mutableStateOf<String?>(null)
+
+    suspend fun signInWithGoogle(activityContext: Context): Result<Unit> = try {
+        OAuthSignIn.google(activityContext).recoverCatching { e ->
+            if (e is OAuthSignIn.Cancelled) throw e
+            throw authFailure(e as? Exception ?: Exception(e), e.message ?: "Couldn't sign in with Google.")
+        }
+    } catch (e: CancellationException) { throw e }
+
+    suspend fun signInWithApple(): Result<Unit> = try {
+        OAuthSignIn.apple()
+    } catch (e: CancellationException) { throw e }
+
+    /** MainActivity hands every VIEW intent here; non-callback links are ignored. */
+    fun handleOAuthIntent(scheme: String?, host: String?, fragment: String?, query: String?) {
+        if (!OAuthConfig.isCallback(scheme, host)) return
+        scope.launch {
+            val r = try { OAuthSignIn.handleCallback(scheme, host, fragment, query) } catch (e: CancellationException) { throw e } catch (e: Exception) { Result.failure(e) }
+            oauthError = r?.exceptionOrNull()?.message
+        }
+    }
+
     suspend fun certify(birthDate: String): Result<Unit> {
         val r = guarded { TreeFortApi.certify(birthDate) }
         r.getOrNull()?.let { profile = it; if (it.isGuardianCertified) { phase = Phase.Loading; bootstrap() } }
