@@ -215,6 +215,7 @@ object WebRTCManager {
                 if (!isCurrent(webSocket)) return
                 isConnecting = false
                 Log.e(TAG, "Signaling WebSocket failure: ${t.message}")
+                CampfireManager.onSignalingLost()
                 _isOnline.value = false
                 if (response?.code == 401 || response?.code == 403) return // signed out or not ours: do not hammer
                 reconnectSignalingWithDelay()
@@ -224,6 +225,7 @@ object WebRTCManager {
                 if (!isCurrent(webSocket)) return
                 isConnecting = false
                 Log.i(TAG, "Signaling WebSocket closed ($code): $reason")
+                CampfireManager.onSignalingLost()
                 _isOnline.value = false
                 if (code != 1000) {
                     reconnectSignalingWithDelay()
@@ -238,6 +240,7 @@ object WebRTCManager {
         handshakeWatchdog.removeCallbacksAndMessages(null)
         reconnectHandler?.removeCallbacksAndMessages(null)
         webSocket?.close(1000, "Signed out")
+        CampfireManager.onSignalingLost()
         webSocket = null
         isConnecting = false
         _isOnline.value = false
@@ -281,6 +284,10 @@ object WebRTCManager {
         }, 3000)
     }
 
+    internal fun peerFactory(): PeerConnectionFactory? = peerConnectionFactory
+    internal fun iceServers(): List<PeerConnection.IceServer> = cachedIceServers
+    internal fun sendRaw(text: String) { webSocket?.send(text) }
+
     private fun sendSignaling(json: JSONObject) {
         val str = json.toString()
         webSocket?.send(str)
@@ -288,6 +295,7 @@ object WebRTCManager {
 
     private fun handleIncomingSignaling(rawJson: String) {
         try {
+            if (CampfireManager.handle(rawJson)) return
             val json = JSONObject(rawJson)
             when (json.optString("type")) {
                 "call_offer" -> {
