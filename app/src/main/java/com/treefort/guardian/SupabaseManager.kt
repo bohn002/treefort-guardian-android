@@ -13,7 +13,17 @@ import io.github.jan.supabase.gotrue.providers.Apple
 import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.IDToken
 import io.github.jan.supabase.gotrue.user.UserSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
 /**
  * Supabase Auth is the only identity provider (ADR 0001). This object signs in and hands out the
@@ -43,12 +53,33 @@ object SupabaseManager {
 
     /** Returns true when a session exists right away (email confirmation off), false when the user must confirm first. */
     suspend fun signUp(email: String, password: String): Boolean {
-        client.auth.signUpWith(Email) {
+        client.auth.signUpWith(Email, redirectUrl = EmailConfirmation.REDIRECT_URL) {
             this.email = email
             this.password = password
         }
         return client.auth.currentSessionOrNull() != null
     }
+
+    /**
+     * Resends the sign-up confirmation email with the same redirect as [signUp]. supabase-kt's
+     * resendEmail has no redirect parameter, so this calls the GoTrue /resend endpoint directly.
+     */
+    suspend fun resendSignup(email: String) = withContext(Dispatchers.IO) {
+        val url = (AppConfig.supabaseUrl.trimEnd('/') + "/auth/v1/resend").toHttpUrl().newBuilder()
+            .addQueryParameter("redirect_to", EmailConfirmation.REDIRECT_URL).build()
+        val body = buildJsonObject { put("type", "signup"); put("email", email) }.toString()
+        val req = Request.Builder().url(url)
+            .header("apikey", AppConfig.supabaseAnonKey)
+            .post(body.toRequestBody("application/json".toMediaType())).build()
+        resendHttp.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) {
+                val text = r.body?.string().orEmpty()
+                throw IllegalStateException(if (r.code == 429 || text.contains("rate", true)) "rate limit" else "resend failed (${r.code})")
+            }
+        }
+    }
+
+    private val resendHttp = OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).build()
 
     suspend fun sendEmailCode(email: String) {
         client.auth.signInWith(OTP) {

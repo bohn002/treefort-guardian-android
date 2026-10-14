@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
     // (AppStore). Nothing is connected until an account is signed in.
     AppStore.start(applicationContext)
     applyIncomingCallWindowFlags(intent)
-    handleOAuthCallback(intent)
+    if (savedInstanceState == null) handleOAuthCallback(intent)
 
     val permissionsToRequest = mutableListOf(android.Manifest.permission.RECORD_AUDIO)
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {

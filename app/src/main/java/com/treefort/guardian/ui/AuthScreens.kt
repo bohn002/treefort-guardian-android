@@ -16,6 +16,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.res.stringResource
+import com.treefort.guardian.EmailConfirmation
+import com.treefort.guardian.R
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -107,9 +114,40 @@ fun AuthScreen() {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf<String?>(null) }
+    // Non-null = the "Check your email" state for this address; unsent = no email was just sent (sign-in hit "not confirmed").
+    var checkEmail by rememberSaveable { mutableStateOf<String?>(null) }
+    var checkEmailJustSent by rememberSaveable { mutableStateOf(true) }
+    val passwordFocus = remember { FocusRequester() }
+    var focusPassword by remember { mutableStateOf(false) }
+
+    LaunchedEffect(AppStore.emailConfirmedPending) {
+        if (AppStore.emailConfirmedPending) {
+            AppStore.emailConfirmedPending = false
+            checkEmail = null; mode = AuthMode.SignIn; error = null; info = null
+            focusPassword = true
+        }
+    }
+    LaunchedEffect(focusPassword, checkEmail) {
+        if (focusPassword && checkEmail == null) {
+            focusPassword = false
+            try { passwordFocus.requestFocus() } catch (_: Exception) { /* field not attached yet; user can tap it */ }
+        }
+    }
 
     fun run(block: suspend () -> Unit) {
         scope.launch { busy = true; error = null; info = null; try { block() } finally { busy = false } }
+    }
+
+    checkEmail?.let { addr ->
+        AuthFrame {
+            ScreenColumn {
+                Text("TreeFort", style = Tf.brand, color = Ink)
+                CheckEmailCard(addr, justSent = checkEmailJustSent, onConfirmed = {
+                    email = addr; password = ""; mode = AuthMode.SignIn; checkEmail = null; focusPassword = true
+                })
+            }
+        }
+        return
     }
 
     AuthFrame {
@@ -125,6 +163,7 @@ fun AuthScreen() {
                         AuthMode.SignIn, AuthMode.SignUp -> {
                             TfTextField(
                                 password, { password = it }, "Password", password = true, enabled = !busy,
+                                focusRequester = passwordFocus,
                                 supportingText = if (mode == AuthMode.SignUp) "At least 8 characters." else null,
                             )
                         }
@@ -137,14 +176,18 @@ fun AuthScreen() {
 
                     when (mode) {
                         AuthMode.SignIn -> TactileButton("Sign in", {
-                            run { AppStore.signIn(email, password).onFailure { error = it.errorText } }
+                            run {
+                                AppStore.signIn(email, password).onFailure {
+                                    if (it is EmailConfirmation.NotConfirmed) { checkEmailJustSent = false; checkEmail = email.trim() } else error = it.errorText
+                                }
+                            }
                         }, Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotEmpty(), loading = busy)
 
                         AuthMode.SignUp -> TactileButton("Create account", {
                             if (password.length < 8) { error = "Use at least 8 characters for your password." }
                             else run {
                                 AppStore.signUp(email, password)
-                                    .onSuccess { signedIn -> if (!signedIn) { info = "Check your email and confirm your address, then sign in."; mode = AuthMode.SignIn } }
+                                    .onSuccess { signedIn -> if (!signedIn) { checkEmailJustSent = true; checkEmail = email.trim() } }
                                     .onFailure { error = it.errorText }
                             }
                         }, Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotEmpty(), loading = busy)
@@ -176,6 +219,60 @@ fun AuthScreen() {
                     ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(AppConfig.PRIVACY_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                 },
             )
+        }
+    }
+}
+
+/** Shown after a sign-up without a session (email confirmation on) or a sign-in that hit "Email not confirmed". */
+@Composable
+private fun CheckEmailCard(address: String, justSent: Boolean, onConfirmed: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val ctx = rememberContext()
+    var lastSentAt by rememberSaveable { mutableLongStateOf(if (justSent) System.currentTimeMillis() else 0L) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var info by remember { mutableStateOf<String?>(null) }
+    val remaining = EmailConfirmation.cooldownRemaining(lastSentAt, now)
+    LaunchedEffect(lastSentAt) {
+        while (EmailConfirmation.cooldownRemaining(lastSentAt, System.currentTimeMillis()) > 0) {
+            now = System.currentTimeMillis(); delay(500)
+        }
+        now = System.currentTimeMillis()
+    }
+    val noEmailApp = stringResource(R.string.open_email_none)
+
+    Text(stringResource(R.string.check_email_title), style = Tf.title, color = Ink)
+    TactileCard {
+        Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
+            Text(
+                stringResource(if (justSent) R.string.check_email_body else R.string.check_email_unconfirmed, address),
+                style = Tf.body, color = Ink,
+            )
+            ErrorText(error)
+            info?.let { Banner(it, kind = BannerKind.Success) }
+            TactileButton(stringResource(R.string.open_email_app), {
+                error = null
+                val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                    .addCategory(android.content.Intent.CATEGORY_APP_EMAIL)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                try { ctx.startActivity(android.content.Intent.createChooser(intent, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                catch (_: android.content.ActivityNotFoundException) { error = noEmailApp }
+            }, Modifier.fillMaxWidth())
+            TactileButton(
+                if (remaining > 0) stringResource(R.string.resend_email_wait, remaining) else stringResource(R.string.resend_email),
+                {
+                    scope.launch {
+                        busy = true; error = null; info = null
+                        AppStore.resendConfirmation(address)
+                            .onSuccess { lastSentAt = System.currentTimeMillis(); now = lastSentAt; info = ctx.getString(R.string.resend_email_sent) }
+                            .onFailure { error = it.errorText }
+                        busy = false
+                    }
+                },
+                Modifier.fillMaxWidth(), backgroundColor = PillBg, enabled = remaining == 0 && !busy, loading = busy,
+            )
+            TactileButton(stringResource(R.string.confirmed_sign_in), onConfirmed, Modifier.fillMaxWidth(), backgroundColor = CardBg)
         }
     }
 }

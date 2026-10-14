@@ -258,6 +258,7 @@ object AppStore {
 
     private fun authFailure(e: Exception, fallback: String): Exception {
         val m = e.message.orEmpty()
+        if (EmailConfirmation.isNotConfirmedError(m)) return EmailConfirmation.NotConfirmed("Confirm your email first. We sent you a link.")
         return Exception(
             when {
                 m.contains("Unable to resolve", true) || m.contains("timeout", true) || m.contains("network", true) ->
@@ -284,6 +285,15 @@ object AppStore {
     } catch (e: CancellationException) { throw e } catch (e: Exception) {
         Result.failure(authFailure(e, "Couldn't create the account. Try again."))
     }
+
+    suspend fun resendConfirmation(email: String): Result<Unit> = try {
+        SupabaseManager.resendSignup(email.trim()); Result.success(Unit)
+    } catch (e: CancellationException) { throw e } catch (e: Exception) {
+        Result.failure(authFailure(e, "Couldn't resend the email. Try again in a minute."))
+    }
+
+    /** Set when the app is opened from the "email confirmed" landing page; AuthScreen consumes it. */
+    var emailConfirmedPending by mutableStateOf(false)
 
     suspend fun sendEmailCode(email: String): Result<Unit> = try {
         SupabaseManager.sendEmailCode(email.trim()); Result.success(Unit)
@@ -317,6 +327,14 @@ object AppStore {
     /** MainActivity hands every VIEW intent here; non-callback links are ignored. */
     fun handleOAuthIntent(scheme: String?, host: String?, fragment: String?, query: String?) {
         if (!OAuthConfig.isCallback(scheme, host)) return
+        if (EmailConfirmation.isConfirmationCallback(fragment, query)) {
+            // Landing-page link after email confirmation: no tokens, so no OAuth flags needed.
+            if (phase == Phase.SignedOut || phase == Phase.Starting) {
+                emailConfirmedPending = true
+                appContext?.let { android.widget.Toast.makeText(it, it.getString(R.string.email_confirmed_toast), android.widget.Toast.LENGTH_LONG).show() }
+            }
+            return
+        }
         scope.launch {
             val r = try { OAuthSignIn.handleCallback(scheme, host, fragment, query) } catch (e: CancellationException) { throw e } catch (e: Exception) { Result.failure(e) }
             oauthError = r?.exceptionOrNull()?.message

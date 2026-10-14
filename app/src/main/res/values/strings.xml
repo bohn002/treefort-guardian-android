@@ -2,4 +2,14 @@
     <string name="app_name">TreeFortGuardian</string>
     <string name="show_password">Show password</string>
     <string name="hide_password">Hide password</string>
+    <string name="email_confirmed_toast">Email confirmed. Sign in.</string>
+    <string name="check_email_title">Check your email</string>
+    <string name="check_email_body">We sent a confirmation link to %1$s. Open it, then come back and sign in.</string>
+    <string name="check_email_unconfirmed">This address isn\'t confirmed yet. Open the link we emailed to %1$s, or send it again.</string>
+    <string name="open_email_app">Open email app</string>
+    <string name="open_email_none">No email app found. Open your email another way.</string>
+    <string name="resend_email">Resend email</string>
+    <string name="resend_email_wait">Resend in %1$d s</string>
+    <string name="resend_email_sent">Email sent again.</string>
+    <string name="confirmed_sign_in">I\'ve confirmed, sign in</string>
 </resources>

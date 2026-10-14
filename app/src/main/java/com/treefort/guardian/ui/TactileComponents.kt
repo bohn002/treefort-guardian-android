@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -257,6 +258,7 @@ fun TfTextField(
     error: String? = null,
     enabled: Boolean = true,
     supportingText: String? = null,
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
 ) {
     var passwordShown by rememberSaveable { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(S.Xs)) {
@@ -264,7 +266,7 @@ fun TfTextField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
+            modifier = Modifier.fillMaxWidth().let { m -> if (focusRequester != null) m.focusRequester(focusRequester) else m }.semantics { contentDescription = label },
             singleLine = singleLine,
             enabled = enabled,
             isError = error != null,
