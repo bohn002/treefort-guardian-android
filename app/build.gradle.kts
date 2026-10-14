@@ -138,3 +138,21 @@ dependencies {
   // Push: FCM high-priority data messages wake the app for incoming calls
   implementation("com.google.firebase:firebase-messaging:26.0.0")
 }
+
+// Shared Help/FAQ content: docs/help_content.json in the meta repo is the single source. Copy it
+// into generated assets at build time (build/ is gitignored, so there is no committed duplicate).
+abstract class CopyHelpContent : DefaultTask() {
+    @get:InputFile abstract val source: RegularFileProperty
+    @get:OutputDirectory abstract val outDir: DirectoryProperty
+    @TaskAction fun run() {
+        source.get().asFile.copyTo(outDir.get().file("help_content.json").asFile, overwrite = true)
+    }
+}
+val copyHelpContent by tasks.registering(CopyHelpContent::class) {
+    source.set(rootProject.layout.projectDirectory.file("../docs/help_content.json"))
+}
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyHelpContent, CopyHelpContent::outDir)
+    }
+}
