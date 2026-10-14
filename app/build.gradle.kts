@@ -29,6 +29,15 @@ android {
         providers.gradleProperty(name).orNull ?: System.getenv(name) ?: localProps.getProperty(name) ?: ""
     fun q(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
+    // Sign in with Google / Apple (docs/OAUTH_SETUP.md). Off unless the flag is exactly "true".
+    // GOOGLE_WEB_CLIENT_ID is the Google *web* OAuth client ID that Supabase's Google provider
+    // also lists; no secret is ever compiled in. Same source order as above; never committed.
+    defaultConfig {
+        buildConfigField("String", "OAUTH_GOOGLE_ENABLED", q(cfg("TREEFORT_OAUTH_GOOGLE_ENABLED")))
+        buildConfigField("String", "OAUTH_APPLE_ENABLED", q(cfg("TREEFORT_OAUTH_APPLE_ENABLED")))
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", q(cfg("GOOGLE_WEB_CLIENT_ID")))
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "SUPABASE_URL", q(cfg("SUPABASE_URL").ifBlank { "https://fqluqmrouysbosioqhhg.supabase.co" }))
@@ -113,6 +122,11 @@ dependencies {
   implementation("io.github.jan-tennert.supabase:gotrue-kt:2.6.1")
   implementation("io.ktor:ktor-client-android:2.3.12")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+
+  // Sign in with Google (Credential Manager -> Google ID token -> Supabase signInWith(IDToken))
+  implementation("androidx.credentials:credentials:1.5.0")
+  implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+  implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
   // Phosphor icons and avatars (DESIGN.md section 7)
   implementation("com.adamglin:phosphor-icon:1.0.0")
