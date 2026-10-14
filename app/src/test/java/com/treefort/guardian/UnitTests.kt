@@ -6,6 +6,9 @@ import com.treefort.guardian.api.TreeFortApi
 import com.treefort.guardian.ui.AvatarCatalog
 import com.treefort.guardian.ui.formatClaimCode
 import com.treefort.guardian.ui.parseInstant
+import com.treefort.guardian.ui.passwordTransformation
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,6 +18,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UnitTests {
+    @Test fun passwordIsHiddenUntilToggled() {
+        assertTrue(passwordTransformation(true, false) is PasswordVisualTransformation)
+        assertEquals(VisualTransformation.None, passwordTransformation(true, true))
+        assertEquals(VisualTransformation.None, passwordTransformation(false, false))
+    }
+
     @Test fun claimCodeIsFormattedAsNnnNnn() {
         assertEquals("123-456", formatClaimCode("123456"))
         assertEquals("123-4", formatClaimCode("1234"))

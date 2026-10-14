@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
@@ -30,7 +31,12 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import com.treefort.guardian.R as AppR
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -233,6 +239,10 @@ fun FieldLabel(text: String) {
     Text(upper(text), style = Tf.label, color = MutedText)
 }
 
+/** Hidden by default; a password field only reveals its text when the user toggles it. */
+fun passwordTransformation(password: Boolean, shown: Boolean): VisualTransformation =
+    if (password && !shown) PasswordVisualTransformation() else VisualTransformation.None
+
 /** Labeled text field with token borders. Label sits above the field (never only a placeholder). */
 @Composable
 fun TfTextField(
@@ -248,6 +258,7 @@ fun TfTextField(
     enabled: Boolean = true,
     supportingText: String? = null,
 ) {
+    var passwordShown by rememberSaveable { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(S.Xs)) {
         FieldLabel(label)
         OutlinedTextField(
@@ -259,7 +270,19 @@ fun TfTextField(
             isError = error != null,
             textStyle = Tf.body.copy(color = Ink),
             placeholder = placeholder?.let { { Text(it, style = Tf.body, color = MutedText) } },
-            visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+            visualTransformation = passwordTransformation(password, passwordShown),
+            trailingIcon = if (!password) null else {
+                {
+                    IconButton(onClick = { passwordShown = !passwordShown }, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            if (passwordShown) Ph.EyeOff else Ph.Eye,
+                            contentDescription = stringResource(if (passwordShown) AppR.string.hide_password else AppR.string.show_password),
+                            tint = MutedText,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboardType),
             shape = RoundedCornerShape(R.Md),
             colors = OutlinedTextFieldDefaults.colors(
