@@ -38,7 +38,7 @@ import kotlinx.coroutines.launch
 
 private val S = TreeFortTokens.Space
 
-enum class Sub { Help, Trips, Members }
+enum class Sub { Help, Trips, Members, Campfire }
 
 private fun openUrl(ctx: android.content.Context, url: String) {
     ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

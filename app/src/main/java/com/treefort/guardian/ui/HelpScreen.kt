@@ -44,7 +44,7 @@ private val FAQS = listOf(
     Faq("What happens if my child dials 911?",
         "Emergency calling isn't available yet. Today the phone plays a prompt asking your child to use a grown-up's phone. You can save an emergency address now so it's ready for later."),
     Faq("What is the Campfire?",
-        "A household room that every TreeFort phone reaches on speed dial #0. Joining it from this app is coming soon."),
+        "A household room that every TreeFort phone reaches on speed dial #0. Guardians can join it from the TreeFort tab to talk with every phone at once. Callers can call a phone directly but can't join the Campfire."),
     Faq("What is Guardian Lock?",
         "A PIN you choose that keeps kids out of Settings when your phone is unlocked. It starts off, with no default PIN. If you forget it, signing out removes it."),
     Faq("Where do I manage billing?",

@@ -47,6 +47,7 @@ import com.treefort.guardian.theme.Tf
 import com.treefort.guardian.theme.TreeFortTokens
 import com.treefort.guardian.theme.upper
 import com.treefort.guardian.ui.ActiveCallOverlay
+import com.treefort.guardian.ui.CampfireScreen
 import com.treefort.guardian.ui.AuthScreen
 import com.treefort.guardian.ui.Banner
 import com.treefort.guardian.ui.BannerKind
@@ -137,8 +138,9 @@ private fun MainScaffold() {
                         Sub.Help -> HelpScreen()
                         Sub.Trips -> Gated { TripsScreen() }
                         Sub.Members -> Gated { MembersScreen() }
+                        Sub.Campfire -> CampfireScreen()
                         null -> when (tab) {
-                            0 -> TreeFortTab(onOpenTrips = { subName = Sub.Trips.name }, onOpenJoin = { joining = true })
+                            0 -> TreeFortTab(onOpenTrips = { subName = Sub.Trips.name }, onOpenCampfire = { subName = Sub.Campfire.name }, onOpenJoin = { joining = true })
                             1 -> FriendsTab()
                             2 -> LogbookTab()
                             else -> Gated { SettingsTab(onOpen = { subName = it.name }) }
@@ -164,6 +166,7 @@ private fun subTitle(s: Sub) = when (s) {
     Sub.Help -> "Help"
     Sub.Trips -> "Vacation mode"
     Sub.Members -> "Guardians and callers"
+    Sub.Campfire -> "Campfire"
 }
 
 @Composable

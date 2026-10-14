@@ -40,7 +40,7 @@ private val S = TreeFortTokens.Space
 
 /** The TreeFort tab: the household's phones, calling, volume, Quiet Hours, emergency address. */
 @Composable
-fun TreeFortTab(onOpenTrips: () -> Unit, onOpenJoin: () -> Unit) {
+fun TreeFortTab(onOpenTrips: () -> Unit, onOpenCampfire: () -> Unit, onOpenJoin: () -> Unit) {
     val h = AppStore.selected
     var claiming by remember { mutableStateOf(false) }
 
@@ -57,6 +57,7 @@ fun TreeFortTab(onOpenTrips: () -> Unit, onOpenJoin: () -> Unit) {
                         action = { TactileButton("Trips", onOpenTrips, backgroundColor = CardBg) },
                     )
                 }
+                CampfireCard(onOpenCampfire)
                 SectionTitle("TreeFort phones", trailing = {
                     TactileButton("Add", { claiming = true }, backgroundColor = ColorSafeGreen, icon = Ph.Plus)
                 })

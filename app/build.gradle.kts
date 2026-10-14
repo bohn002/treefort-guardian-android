@@ -13,7 +13,7 @@ android {
         applicationId = "com.treefort.guardian"
         minSdk = 24
         targetSdk = 36
-        versionCode = 55
+        versionCode = 58
         versionName = "0.1.0"
     }
 
