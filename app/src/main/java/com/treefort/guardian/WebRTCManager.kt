@@ -82,6 +82,10 @@ object WebRTCManager {
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
     @Volatile var isConnecting: Boolean = false
         private set
+
+    /** True after the hub closed our socket with 4409 (another device took the slot); no auto-reconnect. */
+    private val _signalingReplaced = MutableStateFlow(false)
+    val signalingReplaced: StateFlow<Boolean> = _signalingReplaced.asStateFlow()
     
     val isMuted = MutableStateFlow(false)
     val isSpeakerOn = MutableStateFlow(false)
@@ -188,6 +192,7 @@ object WebRTCManager {
         }
         myDialCode = dialCode
         currentDialCode = dialCode
+        _signalingReplaced.value = false
         fetchIceServers()
 
         webSocket?.close(1000, "Reconnecting")
@@ -228,7 +233,9 @@ object WebRTCManager {
                 Log.i(TAG, "Signaling WebSocket closed ($code): $reason")
                 CampfireManager.onSignalingLost()
                 _isOnline.value = false
-                if (code != 1000) {
+                if (SignalingClose.isTerminal(code)) {
+                    _signalingReplaced.value = true
+                } else if (SignalingClose.shouldAutoReconnect(code)) {
                     reconnectSignalingWithDelay()
                 }
             }
@@ -245,6 +252,7 @@ object WebRTCManager {
         webSocket = null
         isConnecting = false
         _isOnline.value = false
+        _signalingReplaced.value = false
         disconnect()
         myDialCode = ""
         currentDialCode = ""

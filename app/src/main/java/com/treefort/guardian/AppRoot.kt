@@ -133,6 +133,7 @@ private fun MainScaffold() {
                     onSwitch = { switching = true },
                 )
                 MessageBanner()
+                SignalingReplacedBanner()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (sub) {
                         Sub.Help -> HelpScreen()
@@ -160,6 +161,21 @@ private fun MainScaffold() {
 
     if (joining) JoinDialog { joining = false }
     if (switching) HouseholdSwitcher { switching = false }
+}
+
+/** Quiet note shown when another of the guardian's devices took over the signaling slot (close 4409). */
+@Composable
+private fun SignalingReplacedBanner() {
+    val replaced by WebRTCManager.signalingReplaced.collectAsState()
+    if (!replaced) return
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(SignalingClose.REPLACED_MESSAGE, style = Tf.bodySm, color = MutedText)
+        TactileButton("Reconnect", { WebRTCManager.connectSignaling() })
+    }
 }
 
 private fun subTitle(s: Sub) = when (s) {
