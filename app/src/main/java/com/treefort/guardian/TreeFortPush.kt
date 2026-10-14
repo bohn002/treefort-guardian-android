@@ -90,7 +90,7 @@ class TreeFortMessagingService : FirebaseMessagingService() {
         Log.i("TreeFort-Push", "Wake-up push: incoming call from $callerName ($from)")
 
         WebRTCManager.initialize(applicationContext)
-        WebRTCManager.showIncomingCallNotification(callerName, from)
+        WebRTCManager.reportIncomingFromPush(callerName, from)
         val dialCode = TreeFortPush.savedDialCode(this) ?: WebRTCManager.myDialCode
         if (!WebRTCManager.isOnline.value && dialCode.isNotBlank()) {
             // Backend delivers the queued call_offer as soon as this socket connects

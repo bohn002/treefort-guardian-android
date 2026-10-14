@@ -146,6 +146,7 @@ object WebRTCManager {
     fun initialize(context: Context) {
         appContext = context.applicationContext
         createNotificationChannel(context)
+        TelecomBridge.register(context)
         if (peerConnectionFactory != null) return
         
         PeerConnectionFactory.initialize(
@@ -310,7 +311,7 @@ object WebRTCManager {
                     activePeerIcon = known?.icon
                     activePeerColor = known?.color
                     _callState.value = CallState.Incoming(from, callerName)
-                    showIncomingCallNotification(callerName, from)
+                    appContext?.let { TelecomBridge.reportIncoming(it, callerName, from) { showIncomingCallNotification(callerName, from) } }
                     setupPeerConnection()
                     peerConnection?.setRemoteDescription(object : SimpleSdpObserver() {
                         override fun onSetSuccess() {
@@ -324,6 +325,7 @@ object WebRTCManager {
                         override fun onSetSuccess() {
                             Log.i(TAG, "Set remote answer SDP success, call active!")
                             _callState.value = CallState.Connected(activeTargetDialCode ?: "")
+                            TelecomBridge.setActive()
                             startTimer()
                         }
                     }, SessionDescription(SessionDescription.Type.ANSWER, sdp))
@@ -456,6 +458,7 @@ object WebRTCManager {
         activePeerIcon = targetIcon
         activePeerColor = targetColor
         _callState.value = CallState.Calling
+        appContext?.let { TelecomBridge.reportOutgoing(it, targetName, targetDialCode) }
         setupPeerConnection()
 
         val constraints = MediaConstraints().apply {
@@ -503,6 +506,7 @@ object WebRTCManager {
                             }
                             sendSignaling(msg)
                             _callState.value = CallState.Connected(target)
+                            TelecomBridge.setActive()
                             startTimer()
                             Log.i(TAG, "Accepted call from $target, sent answer")
                         }
@@ -525,6 +529,7 @@ object WebRTCManager {
     }
 
     fun disconnect() {
+        TelecomBridge.end()
         stopTimer()
         cancelIncomingCallNotification()
         peerConnection?.close()
@@ -560,6 +565,12 @@ object WebRTCManager {
             notificationManager?.deleteNotificationChannel("treefort_incoming_calls")
             notificationManager?.createNotificationChannel(channel)
         }
+    }
+
+    /** Wake-up push: ring through Telecom when it is available, else the notification. */
+    fun reportIncomingFromPush(callerName: String, dialCode: String) {
+        val ctx = appContext ?: return
+        TelecomBridge.reportIncoming(ctx, callerName, dialCode) { showIncomingCallNotification(callerName, dialCode) }
     }
 
     fun showIncomingCallNotification(callerName: String, dialCode: String) {
