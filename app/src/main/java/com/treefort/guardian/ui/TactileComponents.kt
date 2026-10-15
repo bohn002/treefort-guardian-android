@@ -259,6 +259,8 @@ fun TfTextField(
     enabled: Boolean = true,
     supportingText: String? = null,
     focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    imeAction: androidx.compose.ui.text.input.ImeAction = androidx.compose.ui.text.input.ImeAction.Default,
+    onImeAction: (() -> Unit)? = null,
 ) {
     var passwordShown by rememberSaveable { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(S.Xs)) {
@@ -285,7 +287,8 @@ fun TfTextField(
                     }
                 }
             },
-            keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboardType),
+            keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboardType, imeAction = imeAction),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onAny = { onImeAction?.invoke() }),
             shape = RoundedCornerShape(R.Md),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = BorderInk,

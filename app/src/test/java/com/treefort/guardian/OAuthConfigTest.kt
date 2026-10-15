@@ -64,6 +64,11 @@ class OAuthConfigTest {
         assertTrue(s.apple is Availability.Misconfigured)
     }
 
+    @Test fun `not set up message is plain and names the provider`() {
+        assertEquals("Sign in with Apple is not set up yet. Use email for now.", OAuthConfig.notSetUpMessage("Apple"))
+        assertEquals("Sign in with Google is not set up yet. Use email for now.", OAuthConfig.notSetUpMessage("Google"))
+    }
+
     @Test fun `callback deep link matching`() {
         assertTrue(OAuthConfig.isCallback("com.treefort.guardian", "login-callback"))
         assertFalse(OAuthConfig.isCallback("https", "login-callback"))

@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.input.ImeAction
+import com.treefort.guardian.theme.DividerColor
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.imePadding
@@ -100,9 +105,9 @@ fun LoadFailedScreen() {
     }
 }
 
-private enum class AuthMode(val label: String) { SignIn("Sign in"), SignUp("Create account"), Code("Email code") }
+private enum class AuthMode { SignIn, SignUp, Code }
 
-/** Supabase Auth is the only identity provider. Email + password, or a one-time email code. */
+/** Supabase Auth is the only identity provider. Three separate screens: Sign in (landing), Create account, Email code. */
 @Composable
 fun AuthScreen() {
     val scope = rememberCoroutineScope()
@@ -120,19 +125,23 @@ fun AuthScreen() {
     val passwordFocus = remember { FocusRequester() }
     var focusPassword by remember { mutableStateOf(false) }
 
+    fun goTo(m: AuthMode) { mode = m; error = null; info = null; codeSent = false; code = ""; AppStore.oauthError = null }
+
     LaunchedEffect(AppStore.emailConfirmedPending) {
         if (AppStore.emailConfirmedPending) {
             AppStore.emailConfirmedPending = false
-            checkEmail = null; mode = AuthMode.SignIn; error = null; info = null
+            checkEmail = null; goTo(AuthMode.SignIn)
             focusPassword = true
         }
     }
-    LaunchedEffect(focusPassword, checkEmail) {
-        if (focusPassword && checkEmail == null) {
+    LaunchedEffect(focusPassword, checkEmail, mode) {
+        if (focusPassword && checkEmail == null && mode == AuthMode.SignIn) {
             focusPassword = false
             try { passwordFocus.requestFocus() } catch (_: Exception) { /* field not attached yet; user can tap it */ }
         }
     }
+    // Create and Email code return to Sign in.
+    BackHandler(enabled = checkEmail == null && mode != AuthMode.SignIn) { goTo(AuthMode.SignIn) }
 
     fun run(block: suspend () -> Unit) {
         scope.launch { busy = true; error = null; info = null; try { block() } finally { busy = false } }
@@ -143,61 +152,80 @@ fun AuthScreen() {
             ScreenColumn {
                 Text("TreeFort", style = Tf.brand, color = Ink)
                 CheckEmailCard(addr, justSent = checkEmailJustSent, onConfirmed = {
-                    email = addr; password = ""; mode = AuthMode.SignIn; checkEmail = null; focusPassword = true
+                    email = addr; password = ""; checkEmail = null; goTo(AuthMode.SignIn); focusPassword = true
                 })
             }
         }
         return
     }
 
+    val signIn = { run { AppStore.signIn(email, password).onFailure {
+        if (it is EmailConfirmation.NotConfirmed) { checkEmailJustSent = false; checkEmail = email.trim() } else error = it.errorText
+    } } }
+    val createAccount = {
+        if (password.length < 8) { error = "Use at least 8 characters for your password." }
+        else run {
+            AppStore.signUp(email, password)
+                .onSuccess { signedIn -> if (!signedIn) { checkEmailJustSent = true; checkEmail = email.trim() } }
+                .onFailure { error = it.errorText }
+        }
+    }
+
     AuthFrame {
         ScreenColumn {
             Text("TreeFort", style = Tf.brand, color = Ink)
-            Text("Guardian sign-in", style = Tf.title, color = Ink)
-            SegmentedControl(AuthMode.entries.map { it.label }, mode.ordinal, { mode = AuthMode.entries[it]; error = null; info = null; codeSent = false })
+            Text(
+                when (mode) {
+                    AuthMode.SignIn -> "Guardian sign-in"
+                    AuthMode.SignUp -> "Create your guardian account"
+                    AuthMode.Code -> "Sign in with an email code"
+                },
+                style = Tf.title, color = Ink,
+            )
+            if (mode == AuthMode.SignUp) LinkText("Already have an account? Sign in", enabled = !busy) { goTo(AuthMode.SignIn) }
 
             TactileCard {
                 Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
-                    TfTextField(email, { email = it }, "Email", keyboardType = KeyboardType.Email, enabled = !busy)
-                    when (mode) {
-                        AuthMode.SignIn, AuthMode.SignUp -> {
-                            TfTextField(
-                                password, { password = it }, "Password", password = true, enabled = !busy,
-                                focusRequester = passwordFocus,
-                                supportingText = if (mode == AuthMode.SignUp) "At least 8 characters." else null,
-                            )
-                        }
-                        AuthMode.Code -> if (codeSent) {
-                            TfTextField(code, { code = it.filter(Char::isDigit).take(8) }, "Code from your email", keyboardType = KeyboardType.NumberPassword, enabled = !busy)
-                        }
+                    TfTextField(
+                        email, { email = it }, "Email", keyboardType = KeyboardType.Email, enabled = !busy,
+                        imeAction = if (mode == AuthMode.Code) ImeAction.Done else ImeAction.Next,
+                    )
+                    if (mode != AuthMode.Code) {
+                        TfTextField(
+                            password, { password = it }, "Password", password = true, enabled = !busy,
+                            focusRequester = passwordFocus,
+                            supportingText = if (mode == AuthMode.SignUp) "At least 8 characters." else null,
+                            imeAction = ImeAction.Done,
+                            onImeAction = {
+                                if (email.isNotBlank() && password.isNotEmpty() && !busy) {
+                                    if (mode == AuthMode.SignIn) signIn() else createAccount()
+                                }
+                            },
+                        )
+                    } else if (codeSent) {
+                        TfTextField(code, { code = it.filter(Char::isDigit).take(8) }, "Code from your email", keyboardType = KeyboardType.NumberPassword, enabled = !busy)
                     }
                     ErrorText(error)
                     info?.let { Banner(it, kind = BannerKind.Success) }
 
                     when (mode) {
-                        AuthMode.SignIn -> TactileButton("Sign in", {
-                            run {
-                                AppStore.signIn(email, password).onFailure {
-                                    if (it is EmailConfirmation.NotConfirmed) { checkEmailJustSent = false; checkEmail = email.trim() } else error = it.errorText
-                                }
-                            }
-                        }, Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotEmpty(), loading = busy)
-
-                        AuthMode.SignUp -> TactileButton("Create account", {
-                            if (password.length < 8) { error = "Use at least 8 characters for your password." }
-                            else run {
-                                AppStore.signUp(email, password)
-                                    .onSuccess { signedIn -> if (!signedIn) { checkEmailJustSent = true; checkEmail = email.trim() } }
-                                    .onFailure { error = it.errorText }
-                            }
-                        }, Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotEmpty(), loading = busy)
-
+                        AuthMode.SignIn -> {
+                            TactileButton("Sign in", { signIn() }, Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotEmpty(), loading = busy)
+                            LinkText("Email me a sign-in code", enabled = !busy, modifier = Modifier.fillMaxWidth()) { goTo(AuthMode.Code) }
+                        }
+                        AuthMode.SignUp -> {
+                            Text(
+                                "Guardian accounts are for adults 18 and over. Kids never sign in: they use the TreeFort phone.",
+                                style = Tf.bodySm, color = MutedText,
+                            )
+                            TactileButton("Create account", { createAccount() }, Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotEmpty(), loading = busy)
+                        }
                         AuthMode.Code -> if (!codeSent) {
-                            TactileButton("Email me a code", {
+                            TactileButton("Send code", {
                                 run { AppStore.sendEmailCode(email).onSuccess { codeSent = true; info = "We sent a code to ${email.trim()}." }.onFailure { error = it.errorText } }
                             }, Modifier.fillMaxWidth(), enabled = email.isNotBlank(), loading = busy)
                         } else {
-                            TactileButton("Sign in", {
+                            TactileButton("Verify", {
                                 run { AppStore.verifyEmailCode(email, code).onFailure { error = it.errorText } }
                             }, Modifier.fillMaxWidth(), enabled = code.length >= 6, loading = busy)
                             TactileButton("Send a new code", {
@@ -207,19 +235,48 @@ fun AuthScreen() {
                     }
                 }
             }
-            OAuthButtons(busy = busy, run = ::run, onError = { error = it })
-            Text(
-                "Guardian accounts are for adults 18 and over. Kids never sign in: they use the TreeFort phone.",
-                style = Tf.bodySm, color = MutedText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-            )
-            val ctx = rememberContext()
-            Text(
-                "Privacy policy", style = Tf.bodySm, color = LinkColor, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) {
-                    ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(AppConfig.PRIVACY_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-                },
-            )
+            when (mode) {
+                AuthMode.SignIn -> {
+                    OAuthButtons(busy = busy, run = ::run, onError = { error = it })
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(S.Sm)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            Text("New here? ", style = Tf.body, color = Ink)
+                            LinkText("Create an account", enabled = !busy) { goTo(AuthMode.SignUp) }
+                        }
+                        Text(
+                            "Guardian accounts are for adults 18 and over. Kids never sign in: they use the TreeFort phone.",
+                            style = Tf.bodySm, color = MutedText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                        )
+                        PrivacyLink()
+                    }
+                }
+                AuthMode.SignUp -> {
+                    OAuthButtons(busy = busy, run = ::run, onError = { error = it })
+                    PrivacyLink()
+                }
+                AuthMode.Code -> {
+                    LinkText("Use a password instead", enabled = !busy, modifier = Modifier.fillMaxWidth()) { goTo(AuthMode.SignIn) }
+                    PrivacyLink()
+                }
+            }
         }
+    }
+}
+
+/** Text link with a 48 dp touch target. */
+@Composable
+private fun LinkText(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    Box(
+        modifier.heightIn(min = 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Text(text, style = Tf.bodyStrong, color = LinkColor, textAlign = TextAlign.Center) }
+}
+
+@Composable
+private fun PrivacyLink() {
+    val ctx = rememberContext()
+    LinkText("Privacy policy", modifier = Modifier.fillMaxWidth()) {
+        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(AppConfig.PRIVACY_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }
 
@@ -278,38 +335,36 @@ private fun CheckEmailCard(address: String, justSent: Boolean, onConfirmed: () -
 }
 
 /**
- * Sign in with Google / Apple. A provider whose build flag is off renders nothing; one that is on but
- * missing build settings renders disabled with the reason. A new account still has to pass
+ * Continue with Apple / Google, always visible (Apple first). A provider that is off or missing build
+ * settings still shows; tapping it explains it is not set up yet. A new account still has to pass
  * [CertifyScreen] before any household data loads.
  */
 @Composable
 private fun OAuthButtons(busy: Boolean, run: (suspend () -> Unit) -> Unit, onError: (String?) -> Unit) {
     val cfg = remember { OAuthConfig.current }
-    if (!cfg.anyVisible) return
     val ctx = rememberContext()
+    var notSet by remember { mutableStateOf<String?>(null) }
     AppStore.oauthError?.let { Banner(it, kind = BannerKind.Danger) }
-    Text("or", style = Tf.bodySm, color = MutedText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-    OAuthProviderButton("Sign in with Google", cfg.google, busy) {
-        AppStore.oauthError = null
-        run { AppStore.signInWithGoogle(ctx).onFailure { if (it !is OAuthSignIn.Cancelled) onError(it.errorText) } }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Md)) {
+        HorizontalDivider(Modifier.weight(1f), color = DividerColor)
+        Text("or", style = Tf.bodySm, color = MutedText)
+        HorizontalDivider(Modifier.weight(1f), color = DividerColor)
     }
-    OAuthProviderButton("Sign in with Apple", cfg.apple, busy) {
-        AppStore.oauthError = null
+    OAuthProviderButton("Continue with Apple", cfg.apple, busy, onNotSet = { notSet = OAuthConfig.notSetUpMessage("Apple") }) {
+        AppStore.oauthError = null; notSet = null
         run { AppStore.signInWithApple().onFailure { onError(it.errorText) } }
     }
+    OAuthProviderButton("Continue with Google", cfg.google, busy, onNotSet = { notSet = OAuthConfig.notSetUpMessage("Google") }) {
+        AppStore.oauthError = null; notSet = null
+        run { AppStore.signInWithGoogle(ctx).onFailure { if (it !is OAuthSignIn.Cancelled) onError(it.errorText) } }
+    }
+    notSet?.let { Banner(it, kind = BannerKind.Info) }
 }
 
 @Composable
-private fun OAuthProviderButton(label: String, availability: OAuthConfig.Availability, busy: Boolean, onClick: () -> Unit) {
-    when (availability) {
-        OAuthConfig.Availability.Off -> Unit
-        OAuthConfig.Availability.Ready ->
-            TactileButton(label, onClick, Modifier.fillMaxWidth(), backgroundColor = CardBg, enabled = !busy)
-        is OAuthConfig.Availability.Misconfigured -> Column(verticalArrangement = Arrangement.spacedBy(S.Xs)) {
-            TactileButton(label, {}, Modifier.fillMaxWidth(), backgroundColor = CardBg, enabled = false)
-            Text(availability.reason, style = Tf.bodySm, color = MutedText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        }
-    }
+private fun OAuthProviderButton(label: String, availability: OAuthConfig.Availability, busy: Boolean, onNotSet: () -> Unit, onClick: () -> Unit) {
+    val ready = availability == OAuthConfig.Availability.Ready
+    TactileButton(label, if (ready) onClick else onNotSet, Modifier.fillMaxWidth(), backgroundColor = CardBg, enabled = !busy)
 }
 
 /** First sign-in: confirm the account holder is an adult (POST /api/auth/certify). */

@@ -52,6 +52,9 @@ object OAuthConfig {
         val anyVisible: Boolean get() = google != Availability.Off || apple != Availability.Off
     }
 
+    /** Shown when a provider button is tapped but the provider is not usable in this build (never a raw error). */
+    fun notSetUpMessage(provider: String): String = "Sign in with $provider is not set up yet. Use email for now."
+
     /** Fail-closed: only the literal "true" (any case, trimmed) turns a provider on. */
     fun isOn(flag: String?): Boolean = flag?.trim()?.equals("true", ignoreCase = true) == true
 
