@@ -79,8 +79,8 @@ class UnitTests {
     }
 
     @Test fun unknownAvatarsFallBack() {
-        assertEquals(AvatarCatalog.vector("user"), AvatarCatalog.vector("not-an-icon"))
-        assertEquals(AvatarCatalog.preset("slate-mid"), AvatarCatalog.preset("nope"))
+        assertEquals(AvatarCatalog.vector("phone-call"), AvatarCatalog.vector("not-an-icon"))
+        assertEquals(AvatarCatalog.preset("warning-yellow"), AvatarCatalog.preset("nope"))
     }
 
     @Test fun timestampsParseWithAndWithoutOffset() {

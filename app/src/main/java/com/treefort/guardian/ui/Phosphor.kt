@@ -11,9 +11,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.VectorGroup
 import androidx.compose.ui.graphics.vector.VectorPath
@@ -190,7 +193,7 @@ object AvatarCatalog {
 
     fun label(iconId: String): String = groups.flatMap { it.icons }.firstOrNull { it.first == iconId }?.second ?: iconId
 
-    /** Unknown or missing icons render as `user` (ADR 0002). */
+    /** Unknown or missing icons render as `phone-call` (DESIGN.md section 8). */
     fun vector(id: String?): ImageVector = when (id) {
         "anchor" -> PhosphorIcons.Duotone.Anchor
         "backpack" -> PhosphorIcons.Duotone.Backpack
@@ -234,11 +237,12 @@ object AvatarCatalog {
         "tree" -> PhosphorIcons.Duotone.Tree
         "trophy" -> PhosphorIcons.Duotone.Trophy
         "volleyball" -> PhosphorIcons.Duotone.Volleyball
-        else -> PhosphorIcons.Duotone.User
+        "user" -> PhosphorIcons.Duotone.User
+        else -> PhosphorIcons.Duotone.PhonecallDuo
     }
 
     fun preset(token: String?): TreeFortTokens.Avatar.Preset =
-        TreeFortTokens.Avatar.Presets[token] ?: TreeFortTokens.Avatar.Presets.getValue("slate-mid")
+        TreeFortTokens.Avatar.Presets[token] ?: TreeFortTokens.Avatar.Presets.getValue(TreeFortTokens.Avatar.DefaultPreset)
 
     /** Deterministic default preset for an id that has no avatar yet (DESIGN.md section 8). */
     fun defaultPreset(seed: String): String = presetIds[Math.floorMod(seed.hashCode(), presetIds.size)]
@@ -284,10 +288,21 @@ fun PhosphorAvatar(
     val glyphBox = size * TreeFortTokens.Avatar.GlyphRatio
     val vector = AvatarCatalog.vector(icon ?: TreeFortTokens.Avatar.DefaultIcon)
     val showTile = size > TreeFortTokens.Avatar.SizeXs
+    val shadowColor = BorderInk
+    val shadowPx = with(LocalDensity.current) { TreeFortTokens.Shadow.Sm.toPx() }
+    val radiusPx = with(LocalDensity.current) { (size * TreeFortTokens.Avatar.CornerRatio).toPx() }
     Box(
         modifier
             .semantics { contentDescription = name }
             .size(size)
+            .drawBehind {
+                drawRoundRect(
+                    color = shadowColor,
+                    topLeft = Offset(shadowPx, shadowPx),
+                    size = this.size,
+                    cornerRadius = CornerRadius(radiusPx),
+                )
+            }
             .background(preset.background, frame)
             .border(TreeFortTokens.Border.Std, BorderInk, frame),
         contentAlignment = Alignment.Center,
