@@ -1,6 +1,7 @@
 package com.treefort.guardian
 
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
@@ -22,8 +23,31 @@ sealed interface RoomEvent {
     data class Rejected(val roomCode: String, val reason: String) : RoomEvent
 }
 
+/**
+ * What the Campfire does with one mesh frame (RISK-04). Legs travel only as `room_offer` /
+ * `room_answer` / `room_ice` / `room_leave`; plain `call_*` frames are never room legs.
+ */
+sealed interface MeshAction {
+    /** Not a Campfire frame (or a 1:1 frame while we are not in a room): the 1:1 handler takes it. */
+    data object NotOurs : MeshAction
+    /** Ours, but nothing to do (stale or stranger frames that must not disturb the room). */
+    data object Swallow : MeshAction
+    /** A 1:1 call offer while we are in the Campfire: reply busy. */
+    data class DeclineCall(val peer: String) : MeshAction
+    /** A room offer from someone outside our roster (stale or racing): close that leg. */
+    data class RefuseLeg(val peer: String) : MeshAction
+    data class Answer(val peer: String, val sdp: String) : MeshAction
+    data class RemoteAnswer(val peer: String, val sdp: String) : MeshAction
+    data class Ice(val peer: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int) : MeshAction
+    data class CloseLeg(val peer: String) : MeshAction
+}
+
 object CampfireSignaling {
     const val DEFAULT_ROOM = "*90001"
+    /** Sent on join_room so the hub relays room_* (not legacy call_* + room_code) to us. */
+    const val PROTOCOL = 2
+    val ROOM_TYPES = setOf("room_offer", "room_answer", "room_ice", "room_leave")
+    private val CALL_TYPES = setOf("call_offer", "call_answer", "ice_candidate", "call_hangup", "call_rejected")
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     /** Mirrors backend `dialplan.is_campfire_code`: `*9` followed by four digits. */
@@ -49,18 +73,66 @@ object CampfireSignaling {
     }
 
     fun join(room: String, householdId: Int?): String = buildJsonObject {
-        put("type", "join_room"); put("room_code", room)
+        put("type", "join_room"); put("room_code", room); put("protocol", PROTOCOL)
         if (householdId != null) put("household_id", householdId)
     }.toString()
 
-    fun leave(room: String): String = buildJsonObject { put("type", "leave_room"); put("room_code", room) }.toString()
+    /** Leaves the whole room (no target). */
+    fun leave(room: String): String = buildJsonObject { put("type", "room_leave"); put("room_code", room) }.toString()
 
-    /** Reads `{"type":..,"from_dial_code":..}` for mesh call frames; null if not a call frame. */
-    fun meshFrom(raw: String): Pair<String, String>? {
-        val o = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return null
-        val type = o["type"]?.jsonPrimitive?.contentOrNull ?: return null
-        val from = o["from_dial_code"]?.jsonPrimitive?.contentOrNull ?: return null
-        return type to from
+    /** Closes one mesh leg. */
+    fun leaveLeg(peer: String, room: String?, reason: String? = null): String = buildJsonObject {
+        put("type", "room_leave"); put("target_dial_code", peer)
+        if (room != null) put("room_code", room)
+        if (reason != null) put("reason", reason)
+    }.toString()
+
+    fun offer(peer: String, room: String?, sdp: String): String = sdpFrame("room_offer", peer, room, sdp)
+    fun answer(peer: String, room: String?, sdp: String): String = sdpFrame("room_answer", peer, room, sdp)
+
+    fun ice(peer: String, room: String?, candidate: String, sdpMid: String?, sdpMLineIndex: Int): String = buildJsonObject {
+        put("type", "room_ice"); put("target_dial_code", peer)
+        if (room != null) put("room_code", room)
+        put("candidate", buildJsonObject {
+            put("candidate", candidate)
+            if (sdpMid != null) put("sdpMid", sdpMid)
+            put("sdpMLineIndex", sdpMLineIndex)
+        })
+    }.toString()
+
+    private fun sdpFrame(type: String, peer: String, room: String?, sdp: String) = buildJsonObject {
+        put("type", type); put("target_dial_code", peer)
+        if (room != null) put("room_code", room)
+        put("sdp", sdp)
+    }.toString()
+
+    /**
+     * Decides what to do with a mesh frame. Pure. A room leg is only accepted from a peer in our
+     * roster, for our room, while we are in it (Android rule: "only answer peers in the room list").
+     */
+    fun meshAction(raw: String, state: CampfireState): MeshAction {
+        val o = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return MeshAction.NotOurs
+        fun s(k: String) = (o[k] as? JsonPrimitive)?.contentOrNull
+        val type = s("type") ?: return MeshAction.NotOurs
+        val from = s("from_dial_code") ?: return if (type in ROOM_TYPES) MeshAction.Swallow else MeshAction.NotOurs
+        if (type in CALL_TYPES) {
+            if (!state.inRoom) return MeshAction.NotOurs
+            return if (type == "call_offer") MeshAction.DeclineCall(from) else MeshAction.Swallow
+        }
+        if (type !in ROOM_TYPES) return MeshAction.NotOurs
+        val member = state.inRoom && s("room_code") == state.roomCode && from in state.peers
+        if (!member) return if (type == "room_offer") MeshAction.RefuseLeg(from) else MeshAction.Swallow
+        return when (type) {
+            "room_offer" -> s("sdp")?.takeIf { it.isNotEmpty() }?.let { MeshAction.Answer(from, it) } ?: MeshAction.Swallow
+            "room_answer" -> s("sdp")?.takeIf { it.isNotEmpty() }?.let { MeshAction.RemoteAnswer(from, it) } ?: MeshAction.Swallow
+            "room_ice" -> {
+                val c = o["candidate"] as? JsonObject ?: return MeshAction.Swallow
+                fun cs(k: String) = (c[k] as? JsonPrimitive)?.contentOrNull
+                val cand = cs("candidate")?.takeIf { it.isNotEmpty() } ?: return MeshAction.Swallow
+                MeshAction.Ice(from, cand, cs("sdpMid")?.takeIf { it.isNotEmpty() }, cs("sdpMLineIndex")?.toIntOrNull() ?: 0)
+            }
+            else -> MeshAction.CloseLeg(from)
+        }
     }
 }
 

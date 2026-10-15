@@ -15,7 +15,9 @@ import org.webrtc.SessionDescription
 
 /**
  * Campfire group audio: one audio-only mesh over the existing signaling socket. The joiner offers
- * to every member listed in `room_joined`; members answer. Audio only, one shared mic track, no
+ * to every member listed in `room_joined`; members answer. Legs use `room_offer` / `room_answer` /
+ * `room_ice` / `room_leave` (RISK-04, docs/SIGNALING.md); the hub relays them only between members
+ * of the same room. Audio only, one shared mic track, no
  * video, no recording, so memory stays at one PeerConnection per other participant.
  *
  * Only household owners and guardians may join (callers get `call_rejected` from the backend, and
@@ -45,7 +47,7 @@ object CampfireManager {
     fun leave() {
         val room = _state.value.roomCode
         if (room != null) {
-            _state.value.peers.forEach { WebRTCManager.sendRaw(hangupFrame(it)) }
+            _state.value.peers.forEach { WebRTCManager.sendRaw(CampfireSignaling.leaveLeg(it, room)) }
             WebRTCManager.sendRaw(CampfireSignaling.leave(room))
         }
         teardown(null)
@@ -79,24 +81,19 @@ object CampfireManager {
             }
             return true
         }
-        if (!_state.value.inRoom) return false
-        val (type, from) = CampfireSignaling.meshFrom(raw) ?: return false
-        if (from !in _state.value.peers) {
-            // A stranger's 1:1 call while we're in the Campfire: decline it (we are busy).
-            if (type == "call_offer") WebRTCManager.sendRaw(
-                JSONObject().put("type", "call_rejected").put("target_dial_code", from).put("reason", "In the Campfire").toString(),
+        when (val a = CampfireSignaling.meshAction(raw, _state.value)) {
+            MeshAction.NotOurs -> return false
+            MeshAction.Swallow -> Unit
+            // A 1:1 call while we're in the Campfire: decline it (we are busy).
+            is MeshAction.DeclineCall -> WebRTCManager.sendRaw(
+                JSONObject().put("type", "call_rejected").put("target_dial_code", a.peer).put("reason", "In the Campfire").toString(),
             )
-            return type == "call_offer" || type == "ice_candidate"
-        }
-        val json = JSONObject(raw)
-        when (type) {
-            "call_offer" -> answer(from, json.optString("sdp"))
-            "call_answer" -> pcs[from]?.setRemoteDescription(SimpleSdpObserver(), SessionDescription(SessionDescription.Type.ANSWER, json.optString("sdp")))
-            "ice_candidate" -> json.optJSONObject("candidate")?.let {
-                pcs[from]?.addIceCandidate(IceCandidate(it.optString("sdpMid"), it.optInt("sdpMLineIndex"), it.optString("candidate")))
-            }
-            "call_hangup" -> closePeer(from)
-            else -> return false
+            is MeshAction.RefuseLeg -> WebRTCManager.sendRaw(CampfireSignaling.leaveLeg(a.peer, _state.value.roomCode, "Not in this Campfire"))
+            is MeshAction.Answer -> answer(a.peer, a.sdp)
+            is MeshAction.RemoteAnswer ->
+                pcs[a.peer]?.setRemoteDescription(SimpleSdpObserver(), SessionDescription(SessionDescription.Type.ANSWER, a.sdp))
+            is MeshAction.Ice -> pcs[a.peer]?.addIceCandidate(IceCandidate(a.sdpMid, a.sdpMLineIndex, a.candidate))
+            is MeshAction.CloseLeg -> closePeer(a.peer)
         }
         return true
     }
@@ -119,8 +116,7 @@ object CampfireManager {
         val pc = f.createPeerConnection(cfg, object : PeerConnection.Observer {
             override fun onIceCandidate(c: IceCandidate?) {
                 c ?: return
-                val cand = JSONObject().put("candidate", c.sdp).put("sdpMid", c.sdpMid).put("sdpMLineIndex", c.sdpMLineIndex)
-                WebRTCManager.sendRaw(JSONObject().put("type", "ice_candidate").put("target_dial_code", peer).put("candidate", cand).toString())
+                WebRTCManager.sendRaw(CampfireSignaling.ice(peer, _state.value.roomCode, c.sdp, c.sdpMid, c.sdpMLineIndex))
             }
             override fun onIceConnectionChange(s: PeerConnection.IceConnectionState?) {
                 if (s == PeerConnection.IceConnectionState.FAILED) closePeer(peer)
@@ -147,11 +143,7 @@ object CampfireManager {
                 desc ?: return
                 pc.setLocalDescription(object : SimpleSdpObserver() {
                     override fun onSetSuccess() {
-                        WebRTCManager.sendRaw(
-                            JSONObject().put("type", "call_offer").put("target_dial_code", peer)
-                                .put("room_code", _state.value.roomCode).put("caller_name", WebRTCManager.callerName)
-                                .put("sdp", desc.description).toString(),
-                        )
+                        WebRTCManager.sendRaw(CampfireSignaling.offer(peer, _state.value.roomCode, desc.description))
                     }
                 }, desc)
             }
@@ -168,10 +160,7 @@ object CampfireManager {
                         desc ?: return
                         pc.setLocalDescription(object : SimpleSdpObserver() {
                             override fun onSetSuccess() {
-                                WebRTCManager.sendRaw(
-                                    JSONObject().put("type", "call_answer").put("target_dial_code", peer)
-                                        .put("sdp", desc.description).toString(),
-                                )
+                                WebRTCManager.sendRaw(CampfireSignaling.answer(peer, _state.value.roomCode, desc.description))
                             }
                         }, desc)
                     }
@@ -183,8 +172,6 @@ object CampfireManager {
     private fun audioConstraints() = MediaConstraints().apply {
         mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
     }
-
-    private fun hangupFrame(peer: String) = JSONObject().put("type", "call_hangup").put("target_dial_code", peer).toString()
 
     private fun closePeer(peer: String) {
         pcs.remove(peer)?.close()
