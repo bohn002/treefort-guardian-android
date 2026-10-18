@@ -43,6 +43,14 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.treefort.guardian" android:host="login-callback" />
             </intent-filter>
+            <!-- Password-reset email link (https://app.treefort.kids/auth/confirmed?token_hash=...&type=recovery).
+                 Needs /.well-known/assetlinks.json on that host to open without a chooser. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.treefort.kids" android:pathPrefix="/auth/confirmed" />
+            </intent-filter>
         </activity>
 
         <service

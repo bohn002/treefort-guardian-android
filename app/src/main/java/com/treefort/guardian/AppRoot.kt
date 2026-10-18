@@ -49,6 +49,7 @@ import com.treefort.guardian.theme.upper
 import com.treefort.guardian.ui.ActiveCallOverlay
 import com.treefort.guardian.ui.CampfireScreen
 import com.treefort.guardian.ui.AuthScreen
+import com.treefort.guardian.ui.ChoosePasswordScreen
 import com.treefort.guardian.ui.Banner
 import com.treefort.guardian.ui.BannerKind
 import com.treefort.guardian.ui.CertifyScreen
@@ -77,6 +78,7 @@ private val S = TreeFortTokens.Space
 fun MainNavigation() {
     val callState by WebRTCManager.callState.collectAsState()
     Box(Modifier.fillMaxSize().background(CanvasBg)) {
+        if (AppStore.recoveryTokenHash != null) { ChoosePasswordScreen(); return@Box }
         when (AppStore.phase) {
             Phase.Starting, Phase.Loading -> LoadingScreen()
             Phase.ConfigMissing -> ConfigMissingScreen()

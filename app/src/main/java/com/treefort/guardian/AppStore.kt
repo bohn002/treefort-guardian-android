@@ -295,6 +295,24 @@ object AppStore {
     /** Set when the app is opened from the "email confirmed" landing page; AuthScreen consumes it. */
     var emailConfirmedPending by mutableStateOf(false)
 
+    suspend fun sendResetEmail(email: String): Result<Unit> = try {
+        SupabaseManager.sendResetEmail(email.trim()); Result.success(Unit)
+    } catch (e: CancellationException) { throw e } catch (e: Exception) {
+        Result.failure(authFailure(e, "Couldn't send the reset email. Try again in a minute."))
+    }
+
+    /** Token from a recovery deep link; non-null shows the "Choose a new password" screen. */
+    var recoveryTokenHash by mutableStateOf<String?>(null)
+
+    suspend fun finishRecovery(newPassword: String): Result<Unit> {
+        val token = recoveryTokenHash ?: return Result.failure(IllegalStateException("This reset link has expired."))
+        return try {
+            SupabaseManager.completeRecovery(token, newPassword); recoveryTokenHash = null; Result.success(Unit)
+        } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            Result.failure(authFailure(e, "This reset link has expired. Request a new one."))
+        }
+    }
+
     suspend fun sendEmailCode(email: String): Result<Unit> = try {
         SupabaseManager.sendEmailCode(email.trim()); Result.success(Unit)
     } catch (e: CancellationException) { throw e } catch (e: Exception) {

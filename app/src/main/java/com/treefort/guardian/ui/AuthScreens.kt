@@ -44,6 +44,7 @@ import com.treefort.guardian.AppConfig
 import com.treefort.guardian.AppStore
 import com.treefort.guardian.OAuthConfig
 import com.treefort.guardian.OAuthSignIn
+import com.treefort.guardian.PasswordReset
 import com.treefort.guardian.errorText
 import com.treefort.guardian.theme.CardBg
 import com.treefort.guardian.theme.ColorPrimaryBlue
@@ -105,7 +106,7 @@ fun LoadFailedScreen() {
     }
 }
 
-private enum class AuthMode { SignIn, SignUp, Code }
+private enum class AuthMode { SignIn, SignUp, Code, Forgot }
 
 /** Supabase Auth is the only identity provider. Three separate screens: Sign in (landing), Create account, Email code. */
 @Composable
@@ -179,6 +180,7 @@ fun AuthScreen() {
                     AuthMode.SignIn -> "Guardian sign-in"
                     AuthMode.SignUp -> "Create your guardian account"
                     AuthMode.Code -> "Sign in with an email code"
+                    AuthMode.Forgot -> "Forgot password?"
                 },
                 style = Tf.title, color = Ink,
             )
@@ -188,9 +190,11 @@ fun AuthScreen() {
                 Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
                     TfTextField(
                         email, { email = it }, "Email", keyboardType = KeyboardType.Email, enabled = !busy,
-                        imeAction = if (mode == AuthMode.Code) ImeAction.Done else ImeAction.Next,
+                        imeAction = if (mode == AuthMode.Code || mode == AuthMode.Forgot) ImeAction.Done else ImeAction.Next,
                     )
-                    if (mode != AuthMode.Code) {
+                    if (mode == AuthMode.Forgot) {
+                        // email only
+                    } else if (mode != AuthMode.Code) {
                         TfTextField(
                             password, { password = it }, "Password", password = true, enabled = !busy,
                             focusRequester = passwordFocus,
@@ -212,6 +216,7 @@ fun AuthScreen() {
                         AuthMode.SignIn -> {
                             TactileButton("Sign in", { signIn() }, Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotEmpty(), loading = busy)
                             LinkText("Email me a sign-in code", enabled = !busy, modifier = Modifier.fillMaxWidth()) { goTo(AuthMode.Code) }
+                            LinkText("Forgot password?", enabled = !busy, modifier = Modifier.fillMaxWidth()) { goTo(AuthMode.Forgot) }
                         }
                         AuthMode.SignUp -> {
                             Text(
@@ -220,6 +225,9 @@ fun AuthScreen() {
                             )
                             TactileButton("Create account", { createAccount() }, Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotEmpty(), loading = busy)
                         }
+                        AuthMode.Forgot -> TactileButton("Email me a reset link", {
+                            run { AppStore.sendResetEmail(email).onSuccess { info = PasswordReset.NEUTRAL_SENT }.onFailure { error = it.errorText } }
+                        }, Modifier.fillMaxWidth(), enabled = email.isNotBlank(), loading = busy)
                         AuthMode.Code -> if (!codeSent) {
                             TactileButton("Send code", {
                                 run { AppStore.sendEmailCode(email).onSuccess { codeSent = true; info = "We sent a code to ${email.trim()}." }.onFailure { error = it.errorText } }
@@ -254,8 +262,8 @@ fun AuthScreen() {
                     OAuthButtons(busy = busy, run = ::run, onError = { error = it })
                     PrivacyLink()
                 }
-                AuthMode.Code -> {
-                    LinkText("Use a password instead", enabled = !busy, modifier = Modifier.fillMaxWidth()) { goTo(AuthMode.SignIn) }
+                AuthMode.Code, AuthMode.Forgot -> {
+                    LinkText(if (mode == AuthMode.Forgot) "Back to sign in" else "Use a password instead", enabled = !busy, modifier = Modifier.fillMaxWidth()) { goTo(AuthMode.SignIn) }
                     PrivacyLink()
                 }
             }
@@ -401,6 +409,38 @@ fun CertifyScreen() {
                         }
                     }, Modifier.fillMaxWidth(), enabled = adult && dob.length == 10, loading = busy)
                     TactileButton("Sign out", { AppStore.signOut() }, Modifier.fillMaxWidth(), backgroundColor = PillBg, enabled = !busy)
+                }
+            }
+        }
+    }
+}
+
+/** Reached from the recovery email link: sets a new password, then the normal session flow takes over. */
+@Composable
+fun ChoosePasswordScreen() {
+    val scope = rememberCoroutineScope()
+    var password by rememberSaveable { mutableStateOf("") }
+    var confirm by rememberSaveable { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val save = {
+        error = PasswordReset.validate(password, confirm)
+        if (error == null) scope.launch {
+            busy = true
+            AppStore.finishRecovery(password).onFailure { error = it.errorText }
+            busy = false
+        }
+    }
+    AuthFrame {
+        ScreenColumn {
+            Text("TreeFort", style = Tf.brand, color = Ink)
+            Text("Choose a new password", style = Tf.title, color = Ink)
+            TactileCard {
+                Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
+                    TfTextField(password, { password = it }, "New password", password = true, enabled = !busy, imeAction = ImeAction.Next)
+                    TfTextField(confirm, { confirm = it }, "Confirm new password", password = true, enabled = !busy, imeAction = ImeAction.Done, onImeAction = { if (!busy) save() })
+                    ErrorText(error)
+                    TactileButton("Save password", { save() }, Modifier.fillMaxWidth(), enabled = password.isNotEmpty() && confirm.isNotEmpty(), loading = busy)
                 }
             }
         }
