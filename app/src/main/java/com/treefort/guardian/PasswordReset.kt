@@ -8,6 +8,14 @@ object PasswordReset {
     const val MISMATCH = "Passwords don't match."
 
     const val ALREADY_HAVE_ACCOUNT = "Already have an account? Sign in or reset your password."
+    const val CODE_SENT = "If an account exists for that address, a code is on its way."
+
+    /** 422 otp_disabled "Signups not allowed for otp": unknown email on the code flow. Must look like success. */
+    fun isOtpDisabledError(message: String?): Boolean {
+        val m = message.orEmpty()
+        return m.contains("otp_disabled", true) || m.contains("Signups not allowed", true)
+    }
+
     const val WEAK = "Use at least 8 characters with upper and lower case letters, a number and a symbol."
 
     /** Supabase's password-strength rejection ("Password should contain at least one character of each..."). */

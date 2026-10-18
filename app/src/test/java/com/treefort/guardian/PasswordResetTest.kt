@@ -43,4 +43,11 @@ class PasswordResetTest {
         assertEquals("Use at least 8 characters with upper and lower case letters, a number and a symbol.", PasswordReset.WEAK)
         assertEquals("Already have an account? Sign in or reset your password.", PasswordReset.ALREADY_HAVE_ACCOUNT)
     }
+
+    @Test fun `otp disabled error is recognised`() {
+        assertEquals(true, PasswordReset.isOtpDisabledError("Signups not allowed for otp"))
+        assertEquals(true, PasswordReset.isOtpDisabledError("error_code: otp_disabled"))
+        assertEquals(false, PasswordReset.isOtpDisabledError("rate limit"))
+        assertEquals(false, PasswordReset.isOtpDisabledError(null))
+    }
 }

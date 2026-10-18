@@ -337,7 +337,9 @@ object AppStore {
     suspend fun sendEmailCode(email: String): Result<Unit> = try {
         SupabaseManager.sendEmailCode(email.trim()); Result.success(Unit)
     } catch (e: CancellationException) { throw e } catch (e: Exception) {
-        Result.failure(authFailure(e, "Couldn't send the code. Check the email address."))
+        // Unknown address: same outcome as a registered one (no account enumeration).
+        if (PasswordReset.isOtpDisabledError(e.message)) Result.success(Unit)
+        else Result.failure(authFailure(e, "Couldn't send the code. Check the email address."))
     }
 
     suspend fun verifyEmailCode(email: String, code: String): Result<Unit> = try {

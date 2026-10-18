@@ -230,7 +230,7 @@ fun AuthScreen() {
                         }, Modifier.fillMaxWidth(), enabled = email.isNotBlank(), loading = busy)
                         AuthMode.Code -> if (!codeSent) {
                             TactileButton("Send code", {
-                                run { AppStore.sendEmailCode(email).onSuccess { codeSent = true; info = "We sent a code to ${email.trim()}." }.onFailure { error = it.errorText } }
+                                run { AppStore.sendEmailCode(email).onSuccess { codeSent = true; info = PasswordReset.CODE_SENT }.onFailure { error = it.errorText } }
                             }, Modifier.fillMaxWidth(), enabled = email.isNotBlank(), loading = busy)
                         } else {
                             TactileButton("Verify", {
