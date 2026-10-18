@@ -301,16 +301,37 @@ object AppStore {
         Result.failure(authFailure(e, "Couldn't send the reset email. Try again in a minute."))
     }
 
-    /** Token from a recovery deep link; non-null shows the "Choose a new password" screen. */
-    var recoveryTokenHash by mutableStateOf<String?>(null)
+    /** True while the "Choose a new password" screen owns the UI (set by a recovery deep link). */
+    var recoveryActive by mutableStateOf(false)
+        private set
+    var recoveryEmail by mutableStateOf<String?>(null)
+        private set
+    private var recoveryToken: String? = null
+    private var recoveryVerified = false
 
-    suspend fun finishRecovery(newPassword: String): Result<Unit> {
-        val token = recoveryTokenHash ?: return Result.failure(IllegalStateException("This reset link has expired."))
-        return try {
-            SupabaseManager.completeRecovery(token, newPassword); recoveryTokenHash = null; Result.success(Unit)
-        } catch (e: CancellationException) { throw e } catch (e: Exception) {
-            Result.failure(authFailure(e, "This reset link has expired. Request a new one."))
+    fun startRecovery(tokenHash: String) {
+        recoveryToken = tokenHash; recoveryVerified = false; recoveryEmail = null; recoveryActive = true
+    }
+
+    /** Verifies the link once (the token is single use and cleared right away); retries only call updateUser. */
+    suspend fun finishRecovery(newPassword: String): Result<Unit> = try {
+        if (!recoveryVerified) {
+            val token = recoveryToken ?: throw IllegalStateException("This reset link has expired. Request a new one.")
+            recoveryToken = null
+            recoveryEmail = SupabaseManager.verifyRecovery(token)
+            recoveryVerified = true
         }
+        SupabaseManager.updatePassword(newPassword)
+        recoveryActive = false; recoveryEmail = null
+        Result.success(Unit)
+    } catch (e: CancellationException) { throw e } catch (e: Exception) {
+        Result.failure(authFailure(e, "This reset link has expired. Request a new one."))
+    }
+
+    /** Cancel / "Not you?": drop any recovery session and return to sign in. */
+    fun cancelRecovery() {
+        recoveryToken = null; recoveryVerified = false; recoveryActive = false; recoveryEmail = null
+        signOut()
     }
 
     suspend fun sendEmailCode(email: String): Result<Unit> = try {

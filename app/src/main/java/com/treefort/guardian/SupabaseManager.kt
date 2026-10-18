@@ -85,11 +85,13 @@ object SupabaseManager {
         client.auth.resetPasswordForEmail(email, redirectUrl = EmailConfirmation.REDIRECT_URL)
     }
 
-    /** Exchanges the recovery link's token_hash for a session, then sets the new password. */
-    suspend fun completeRecovery(tokenHash: String, newPassword: String) {
+    /** Exchanges the recovery link's token_hash for a session; returns the account email. */
+    suspend fun verifyRecovery(tokenHash: String): String? {
         client.auth.verifyEmailOtp(type = OtpType.Email.RECOVERY, tokenHash = tokenHash)
-        client.auth.updateUser { password = newPassword }
+        return client.auth.currentUserOrNull()?.email
     }
+
+    suspend fun updatePassword(newPassword: String) { client.auth.updateUser { password = newPassword } }
 
     suspend fun sendEmailCode(email: String) {
         client.auth.signInWith(OTP) {

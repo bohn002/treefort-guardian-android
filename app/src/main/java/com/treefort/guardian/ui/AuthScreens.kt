@@ -435,12 +435,17 @@ fun ChoosePasswordScreen() {
         ScreenColumn {
             Text("TreeFort", style = Tf.brand, color = Ink)
             Text("Choose a new password", style = Tf.title, color = Ink)
+            AppStore.recoveryEmail?.let { addr ->
+                Text(addr, style = Tf.body, color = MutedText)
+                LinkText("Not you? Sign out", enabled = !busy) { AppStore.cancelRecovery() }
+            }
             TactileCard {
                 Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
                     TfTextField(password, { password = it }, "New password", password = true, enabled = !busy, imeAction = ImeAction.Next)
                     TfTextField(confirm, { confirm = it }, "Confirm new password", password = true, enabled = !busy, imeAction = ImeAction.Done, onImeAction = { if (!busy) save() })
                     ErrorText(error)
                     TactileButton("Save password", { save() }, Modifier.fillMaxWidth(), enabled = password.isNotEmpty() && confirm.isNotEmpty(), loading = busy)
+                    TactileButton("Cancel", { AppStore.cancelRecovery() }, Modifier.fillMaxWidth(), backgroundColor = PillBg, enabled = !busy)
                 }
             }
         }

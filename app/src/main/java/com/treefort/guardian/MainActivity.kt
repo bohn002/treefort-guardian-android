@@ -50,7 +50,12 @@ class MainActivity : ComponentActivity() {
   private fun handleOAuthCallback(intent: android.content.Intent?) {
     if (intent?.action != android.content.Intent.ACTION_VIEW) return
     val uri = intent.data ?: return
-    PasswordReset.tokenHash(uri.scheme, uri.host, uri.path, uri.encodedQuery)?.let { AppStore.recoveryTokenHash = it; return }
+    when (val link = PasswordReset.parseLink(uri.scheme, uri.host, uri.path, uri.encodedQuery)) {
+      is PasswordReset.Link.Recovery -> { AppStore.startRecovery(link.tokenHash); return }
+      // Signup confirmation opened in-app: same path as the landing page's login-callback link.
+      PasswordReset.Link.Signup -> { AppStore.handleOAuthIntent("com.treefort.guardian", "login-callback", null, null); return }
+      PasswordReset.Link.None -> Unit
+    }
     AppStore.handleOAuthIntent(uri.scheme, uri.host, uri.encodedFragment, uri.encodedQuery)
   }
 

@@ -78,7 +78,7 @@ private val S = TreeFortTokens.Space
 fun MainNavigation() {
     val callState by WebRTCManager.callState.collectAsState()
     Box(Modifier.fillMaxSize().background(CanvasBg)) {
-        if (AppStore.recoveryTokenHash != null) { ChoosePasswordScreen(); return@Box }
+        if (AppStore.recoveryActive) { ChoosePasswordScreen(); return@Box }
         when (AppStore.phase) {
             Phase.Starting, Phase.Loading -> LoadingScreen()
             Phase.ConfigMissing -> ConfigMissingScreen()

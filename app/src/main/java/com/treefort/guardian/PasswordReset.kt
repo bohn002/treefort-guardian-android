@@ -14,10 +14,22 @@ object PasswordReset {
         else -> null
     }
 
-    /** The recovery email link `https://app.treefort.kids/auth/confirmed?token_hash=...&type=recovery`; null for anything else. */
-    fun tokenHash(scheme: String?, host: String?, path: String?, query: String?): String? {
-        if (scheme != "https" || host != "app.treefort.kids" || path != "/auth/confirmed") return null
-        val p = query.orEmpty().split('&').associate { it.substringBefore('=') to java.net.URLDecoder.decode(it.substringAfter('=', ""), "UTF-8") }
-        return p["token_hash"]?.takeIf { it.isNotBlank() && p["type"] == "recovery" }
+    sealed interface Link {
+        data class Recovery(val tokenHash: String) : Link
+        data object Signup : Link
+        data object None : Link
+    }
+
+    /** Classifies an `https://app.treefort.kids/auth/confirmed?...` link; only types recovery and signup are accepted. */
+    fun parseLink(scheme: String?, host: String?, path: String?, query: String?): Link {
+        if (scheme != "https" || host != "app.treefort.kids" || path != "/auth/confirmed") return Link.None
+        val p = runCatching {
+            query.orEmpty().split('&').associate { it.substringBefore('=') to java.net.URLDecoder.decode(it.substringAfter('=', ""), "UTF-8") }
+        }.getOrNull() ?: return Link.None
+        return when (p["type"]) {
+            "recovery" -> p["token_hash"]?.takeIf { it.isNotBlank() }?.let { Link.Recovery(it) } ?: Link.None
+            "signup" -> Link.Signup
+            else -> Link.None
+        }
     }
 }
