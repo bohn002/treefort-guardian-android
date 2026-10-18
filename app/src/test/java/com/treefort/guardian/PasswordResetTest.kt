@@ -31,4 +31,16 @@ class PasswordResetTest {
     @Test fun `malformed percent escape does not throw`() {
         assertEquals(PasswordReset.Link.None, link("token_hash=%zz&type=recovery"))
     }
+
+    @Test fun `weak password server error is recognised`() {
+        assertEquals(true, PasswordReset.isWeakPasswordError("Password should contain at least one character of each: abc, ABC, 123, !@#"))
+        assertEquals(true, PasswordReset.isWeakPasswordError("weak_password"))
+        assertEquals(false, PasswordReset.isWeakPasswordError("Invalid login credentials"))
+        assertEquals(false, PasswordReset.isWeakPasswordError(null))
+    }
+
+    @Test fun `copy matches spec`() {
+        assertEquals("Use at least 8 characters with upper and lower case letters, a number and a symbol.", PasswordReset.WEAK)
+        assertEquals("Already have an account? Sign in or reset your password.", PasswordReset.ALREADY_HAVE_ACCOUNT)
+    }
 }

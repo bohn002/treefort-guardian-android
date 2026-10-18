@@ -154,7 +154,7 @@ fun AuthScreen() {
                 Text("TreeFort", style = Tf.brand, color = Ink)
                 CheckEmailCard(addr, justSent = checkEmailJustSent, onConfirmed = {
                     email = addr; password = ""; checkEmail = null; goTo(AuthMode.SignIn); focusPassword = true
-                })
+                }, onForgot = { email = addr; checkEmail = null; goTo(AuthMode.Forgot) })
             }
         }
         return
@@ -198,7 +198,7 @@ fun AuthScreen() {
                         TfTextField(
                             password, { password = it }, "Password", password = true, enabled = !busy,
                             focusRequester = passwordFocus,
-                            supportingText = if (mode == AuthMode.SignUp) "At least 8 characters." else null,
+                            supportingText = if (mode == AuthMode.SignUp) PasswordReset.WEAK else null,
                             imeAction = ImeAction.Done,
                             onImeAction = {
                                 if (email.isNotBlank() && password.isNotEmpty() && !busy) {
@@ -290,7 +290,7 @@ private fun PrivacyLink() {
 
 /** Shown after a sign-up without a session (email confirmation on) or a sign-in that hit "Email not confirmed". */
 @Composable
-private fun CheckEmailCard(address: String, justSent: Boolean, onConfirmed: () -> Unit) {
+private fun CheckEmailCard(address: String, justSent: Boolean, onConfirmed: () -> Unit, onForgot: () -> Unit) {
     val scope = rememberCoroutineScope()
     val ctx = rememberContext()
     var lastSentAt by rememberSaveable { mutableLongStateOf(if (justSent) System.currentTimeMillis() else 0L) }
@@ -321,7 +321,9 @@ private fun CheckEmailCard(address: String, justSent: Boolean, onConfirmed: () -
                 val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
                     .addCategory(android.content.Intent.CATEGORY_APP_EMAIL)
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                try { ctx.startActivity(android.content.Intent.createChooser(intent, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                // Needs the <queries> entry in the manifest on Android 11+, or resolveActivity is always null.
+                if (intent.resolveActivity(ctx.packageManager) == null) error = noEmailApp
+                else try { ctx.startActivity(android.content.Intent.createChooser(intent, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 catch (_: android.content.ActivityNotFoundException) { error = noEmailApp }
             }, Modifier.fillMaxWidth())
             TactileButton(
@@ -338,6 +340,10 @@ private fun CheckEmailCard(address: String, justSent: Boolean, onConfirmed: () -
                 Modifier.fillMaxWidth(), backgroundColor = PillBg, enabled = remaining == 0 && !busy, loading = busy,
             )
             TactileButton(stringResource(R.string.confirmed_sign_in), onConfirmed, Modifier.fillMaxWidth(), backgroundColor = CardBg)
+            // Always shown, same words whether or not the address already has an account (no enumeration).
+            Text(PasswordReset.ALREADY_HAVE_ACCOUNT, style = Tf.bodySm, color = MutedText)
+            LinkText("Sign in", modifier = Modifier.fillMaxWidth(), onClick = onConfirmed)
+            LinkText("Forgot password?", modifier = Modifier.fillMaxWidth(), onClick = onForgot)
         }
     }
 }
@@ -441,7 +447,7 @@ fun ChoosePasswordScreen() {
             }
             TactileCard {
                 Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
-                    TfTextField(password, { password = it }, "New password", password = true, enabled = !busy, imeAction = ImeAction.Next)
+                    TfTextField(password, { password = it }, "New password", password = true, enabled = !busy, supportingText = PasswordReset.WEAK, imeAction = ImeAction.Next)
                     TfTextField(confirm, { confirm = it }, "Confirm new password", password = true, enabled = !busy, imeAction = ImeAction.Done, onImeAction = { if (!busy) save() })
                     ErrorText(error)
                     TactileButton("Save password", { save() }, Modifier.fillMaxWidth(), enabled = password.isNotEmpty() && confirm.isNotEmpty(), loading = busy)

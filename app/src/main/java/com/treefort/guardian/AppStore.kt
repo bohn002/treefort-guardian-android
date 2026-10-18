@@ -258,6 +258,7 @@ object AppStore {
 
     private fun authFailure(e: Exception, fallback: String): Exception {
         val m = e.message.orEmpty()
+        if (PasswordReset.isWeakPasswordError(m)) return Exception(PasswordReset.WEAK)
         if (EmailConfirmation.isNotConfirmedError(m)) return EmailConfirmation.NotConfirmed("Confirm your email first. We sent you a link.")
         return Exception(
             when {
@@ -266,7 +267,6 @@ object AppStore {
                 m.contains("Invalid login", true) -> "That email and password don't match."
                 m.contains("not confirmed", true) -> "Confirm your email first. We sent you a link."
                 m.contains("rate", true) || m.contains("429") -> "Too many tries. Wait a few minutes and try again."
-                m.contains("already", true) -> "That email already has an account. Sign in instead."
                 m.contains("Password", true) && m.contains("weak", true) -> "Choose a longer, less common password."
                 else -> fallback
             }
@@ -325,7 +325,7 @@ object AppStore {
         recoveryActive = false; recoveryEmail = null
         Result.success(Unit)
     } catch (e: CancellationException) { throw e } catch (e: Exception) {
-        Result.failure(authFailure(e, "This reset link has expired. Request a new one."))
+        Result.failure(authFailure(e, if (recoveryVerified) "Couldn't save your password. Try again." else "This reset link has expired. Request a new one."))
     }
 
     /** Cancel / "Not you?": drop any recovery session and return to sign in. */

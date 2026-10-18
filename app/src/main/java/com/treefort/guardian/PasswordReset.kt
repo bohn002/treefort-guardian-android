@@ -7,6 +7,15 @@ object PasswordReset {
     const val TOO_SHORT = "Password must be at least 8 characters."
     const val MISMATCH = "Passwords don't match."
 
+    const val ALREADY_HAVE_ACCOUNT = "Already have an account? Sign in or reset your password."
+    const val WEAK = "Use at least 8 characters with upper and lower case letters, a number and a symbol."
+
+    /** Supabase's password-strength rejection ("Password should contain at least one character of each..."). */
+    fun isWeakPasswordError(message: String?): Boolean {
+        val m = message.orEmpty()
+        return m.contains("weak_password", true) || m.contains("Password should", true)
+    }
+
     /** Null = ok, else the inline error. */
     fun validate(password: String, confirm: String): String? = when {
         password.length < MIN_LENGTH -> TOO_SHORT
