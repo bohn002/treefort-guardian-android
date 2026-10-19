@@ -1,5 +1,6 @@
 package com.treefort.guardian.ui
 
+import com.treefort.guardian.ScreenFixture
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -71,7 +72,7 @@ fun ScreenColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope
     Column(
         modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState(ScreenFixture.scrollPx))
             .padding(horizontal = S.Lg, vertical = S.Md),
         verticalArrangement = Arrangement.spacedBy(S.Lg),
         content = content,

@@ -1,5 +1,6 @@
 package com.treefort.guardian.ui
 
+import com.treefort.guardian.ScreenFixture
 import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -66,7 +67,7 @@ fun HelpScreen() {
         val context = LocalContext.current
         val faqs = remember { loadFaqs(context) }
         faqs.forEachIndexed { i, f ->
-            var open by rememberSaveable(i) { mutableStateOf(false) }
+            var open by rememberSaveable(i) { mutableStateOf(i == 0 && ScreenFixture.at("support-faq-open")) }
             TactileCard(padding = S.Md) {
                 Column(verticalArrangement = Arrangement.spacedBy(S.Sm)) {
                     Row(

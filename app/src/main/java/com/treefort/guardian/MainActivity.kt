@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
     WebRTCManager.initialize(applicationContext)
     // Signed-in state, our own TreeFort number and signaling all come from the Supabase session
     // (AppStore). Nothing is connected until an account is signed in.
-    AppStore.start(applicationContext)
+    if (!ScreenFixture.apply(intent)) AppStore.start(applicationContext)
     applyIncomingCallWindowFlags(intent)
     if (savedInstanceState == null) handleOAuthCallback(intent)
 

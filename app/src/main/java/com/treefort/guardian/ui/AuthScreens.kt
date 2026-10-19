@@ -45,6 +45,7 @@ import com.treefort.guardian.AppStore
 import com.treefort.guardian.OAuthConfig
 import com.treefort.guardian.OAuthSignIn
 import com.treefort.guardian.PasswordReset
+import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.errorText
 import com.treefort.guardian.theme.CardBg
 import com.treefort.guardian.theme.ColorPrimaryBlue
@@ -112,16 +113,35 @@ private enum class AuthMode { SignIn, SignUp, Code, Forgot }
 @Composable
 fun AuthScreen() {
     val scope = rememberCoroutineScope()
-    var mode by rememberSaveable { mutableStateOf(AuthMode.SignIn) }
-    var email by rememberSaveable { mutableStateOf("") }
+    var mode by rememberSaveable {
+        mutableStateOf(when {
+            ScreenFixture.at("auth-create-account", "auth-create-account-error") -> AuthMode.SignUp
+            ScreenFixture.at("auth-email-code", "auth-email-code-verify") -> AuthMode.Code
+            ScreenFixture.at("auth-forgot-password", "auth-forgot-password-sent") -> AuthMode.Forgot
+            else -> AuthMode.SignIn
+        })
+    }
+    var email by rememberSaveable { mutableStateOf(if (ScreenFixture.active) "alex@example.com" else "") }
     var password by rememberSaveable { mutableStateOf("") }
-    var code by rememberSaveable { mutableStateOf("") }
-    var codeSent by rememberSaveable { mutableStateOf(false) }
+    var code by rememberSaveable { mutableStateOf(if (ScreenFixture.at("auth-email-code-verify")) "482913" else "") }
+    var codeSent by rememberSaveable { mutableStateOf(ScreenFixture.at("auth-email-code-verify")) }
     var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var info by remember { mutableStateOf<String?>(null) }
+    var error by remember {
+        mutableStateOf<String?>(when {
+            ScreenFixture.at("auth-sign-in-error") -> "Invalid login credentials"
+            ScreenFixture.at("auth-create-account-error") -> "Use at least 8 characters for your password."
+            else -> null
+        })
+    }
+    var info by remember {
+        mutableStateOf<String?>(when {
+            ScreenFixture.at("auth-forgot-password-sent") -> PasswordReset.NEUTRAL_SENT
+            ScreenFixture.at("auth-email-code-verify") -> PasswordReset.CODE_SENT
+            else -> null
+        })
+    }
     // Non-null = the "Check your email" state for this address; unsent = no email was just sent (sign-in hit "not confirmed").
-    var checkEmail by rememberSaveable { mutableStateOf<String?>(null) }
+    var checkEmail by rememberSaveable { mutableStateOf<String?>(if (ScreenFixture.at("auth-check-email")) "alex@example.com" else null) }
     var checkEmailJustSent by rememberSaveable { mutableStateOf(true) }
     val passwordFocus = remember { FocusRequester() }
     var focusPassword by remember { mutableStateOf(false) }
@@ -357,7 +377,7 @@ private fun CheckEmailCard(address: String, justSent: Boolean, onConfirmed: () -
 private fun OAuthButtons(busy: Boolean, run: (suspend () -> Unit) -> Unit, onError: (String?) -> Unit) {
     val cfg = remember { OAuthConfig.current }
     val ctx = rememberContext()
-    var notSet by remember { mutableStateOf<String?>(null) }
+    var notSet by remember { mutableStateOf<String?>(if (ScreenFixture.at("auth-sign-in-provider-not-set-up")) OAuthConfig.notSetUpMessage("Apple") else null) }
     AppStore.oauthError?.let { Banner(it, kind = BannerKind.Danger) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Md)) {
         HorizontalDivider(Modifier.weight(1f), color = DividerColor)
@@ -425,10 +445,11 @@ fun CertifyScreen() {
 @Composable
 fun ChoosePasswordScreen() {
     val scope = rememberCoroutineScope()
-    var password by rememberSaveable { mutableStateOf("") }
-    var confirm by rememberSaveable { mutableStateOf("") }
+    val failing = ScreenFixture.at("auth-reset-password-error")
+    var password by rememberSaveable { mutableStateOf(if (failing) "Maple-Tree-42!" else "") }
+    var confirm by rememberSaveable { mutableStateOf(if (failing) "Maple-Tree-43!" else "") }
     var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(if (failing) PasswordReset.validate(password, confirm) else null) }
     val save = {
         error = PasswordReset.validate(password, confirm)
         if (error == null) scope.launch {

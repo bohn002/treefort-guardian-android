@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.MessageKind
 import com.treefort.guardian.api.Contact
 import com.treefort.guardian.api.FriendInvite
@@ -43,10 +44,10 @@ private fun Contact.displayColor() = avatarColor ?: AvatarCatalog.defaultPreset(
 /** Friends: the Safelist. Only these TreeFort numbers can call the phones or be called by them. */
 @Composable
 fun FriendsTab() {
-    var editing by remember { mutableStateOf<Contact?>(null) }
-    var adding by remember { mutableStateOf(false) }
-    var inviting by remember { mutableStateOf(false) }
-    var accepting by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Contact?>(if (ScreenFixture.at("modal-edit-friend")) AppStore.contacts.firstOrNull() else null) }
+    var adding by remember { mutableStateOf(ScreenFixture.at("modal-add-friend-number")) }
+    var inviting by remember { mutableStateOf(ScreenFixture.at("modal-add-friend-invite")) }
+    var accepting by remember { mutableStateOf(ScreenFixture.at("modal-add-friend-phrase")) }
 
     ScreenColumn {
         if (!AppStore.isManager) {

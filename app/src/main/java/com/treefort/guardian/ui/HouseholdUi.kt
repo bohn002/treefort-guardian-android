@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.MessageKind
 import com.treefort.guardian.api.HouseholdInvite
 import com.treefort.guardian.api.MAX_CALLERS
@@ -52,7 +53,7 @@ fun MembersScreen() {
     val members = AppStore.detail?.members.orEmpty()
     val managers = members.filter { it.role != ROLE_CALLER }
     val callers = members.filter { it.role == ROLE_CALLER }
-    var inviting by remember { mutableStateOf(false) }
+    var inviting by remember { mutableStateOf(ScreenFixture.at("settings-household-invite-form")) }
     var acting by remember { mutableStateOf<Member?>(null) }
 
     ScreenColumn {

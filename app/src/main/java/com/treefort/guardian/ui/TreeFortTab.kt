@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.MessageKind
 import com.treefort.guardian.WebRTCManager
 import com.treefort.guardian.api.Device
@@ -42,7 +43,7 @@ private val S = TreeFortTokens.Space
 @Composable
 fun TreeFortTab(onOpenTrips: () -> Unit, onOpenCampfire: () -> Unit, onOpenJoin: () -> Unit) {
     val h = AppStore.selected
-    var claiming by remember { mutableStateOf(false) }
+    var claiming by remember { mutableStateOf(ScreenFixture.at("modal-pair-phone")) }
 
     ScreenColumn {
         when {
@@ -125,9 +126,10 @@ private fun CallerHome() {
 @Composable
 private fun PhoneCard(d: Device) {
     val scope = rememberCoroutineScope()
-    var quiet by remember { mutableStateOf(false) }
+    val first = ScreenFixture.active && d.id == AppStore.devices.firstOrNull()?.id
+    var quiet by remember { mutableStateOf(first && ScreenFixture.at("station-quiet-hours-expanded", "modal-add-rule")) }
     var picking by remember { mutableStateOf(false) }
-    var releasing by remember { mutableStateOf(false) }
+    var releasing by remember { mutableStateOf(first && ScreenFixture.at("modal-remove-phone", "settings-modal-release-phone")) }
     var releaseError by remember { mutableStateOf<String?>(null) }
     var volume by remember(d.id, d.volumeLevel) { mutableFloatStateOf(d.volumeLevel.toFloat()) }
     val address = AppStore.addresses.firstOrNull { it.id == d.e911AddressId }

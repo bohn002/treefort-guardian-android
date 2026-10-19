@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.MessageKind
 import com.treefort.guardian.api.QuietRule
 import com.treefort.guardian.api.Trip
@@ -37,7 +38,7 @@ private val S = TreeFortTokens.Space
 /** Vacation mode: trips that move a phone's timezone, Quiet Hours and emergency address, then revert on their own. */
 @Composable
 fun TripsScreen() {
-    var planning by remember { mutableStateOf(false) }
+    var planning by remember { mutableStateOf(ScreenFixture.at("settings-travel-plan-trip")) }
     val live = AppStore.trips.filter { it.status == "active" || it.status == "upcoming" }
     ScreenColumn {
         SectionTitle("Vacation mode")

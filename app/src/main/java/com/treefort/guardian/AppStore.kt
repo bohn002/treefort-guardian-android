@@ -53,41 +53,41 @@ object AppStore {
     // ---- session ----------------------------------------------------------------------------
 
     var phase by mutableStateOf(Phase.Starting)
-        private set
+        internal set
     var loadError by mutableStateOf<String?>(null)
-        private set
+        internal set
     var profile by mutableStateOf<UserProfile?>(null)
-        private set
+        internal set
     var myDialCode by mutableStateOf("")
-        private set
+        internal set
 
     // ---- household-scoped data --------------------------------------------------------------
 
     var households by mutableStateOf<List<HouseholdSummary>>(emptyList())
-        private set
+        internal set
     var selectedId by mutableStateOf<Int?>(null)
-        private set
+        internal set
     var devices by mutableStateOf<List<Device>>(emptyList())
-        private set
+        internal set
     var contacts by mutableStateOf<List<Contact>>(emptyList())
-        private set
+        internal set
     var calls by mutableStateOf<List<CallLogEntry>>(emptyList())
-        private set
+        internal set
     var audit by mutableStateOf<List<AuditEntry>>(emptyList())
-        private set
+        internal set
     var addresses by mutableStateOf<List<Address>>(emptyList())
-        private set
+        internal set
     var trips by mutableStateOf<List<Trip>>(emptyList())
-        private set
+        internal set
     var detail by mutableStateOf<HouseholdDetail?>(null)
-        private set
+        internal set
     var invites by mutableStateOf<List<HouseholdInvite>>(emptyList())
-        private set
+        internal set
     var refreshing by mutableIntStateOf(0)
-        private set
+        internal set
 
     var message by mutableStateOf<StoreMessage?>(null)
-        private set
+        internal set
 
     val selected: HouseholdSummary? get() = households.firstOrNull { it.id == selectedId }
     val isManager: Boolean get() = selected?.isManager == true
@@ -126,7 +126,7 @@ object AppStore {
 
     /** Foreground: reconnect signaling if it dropped and refresh the data. */
     fun onResume() {
-        if (phase != Phase.Ready) return
+        if (phase != Phase.Ready || ScreenFixture.active) return
         if (!WebRTCManager.isOnline.value && myDialCode.isNotBlank()) WebRTCManager.connectSignaling(myDialCode)
         scope.launch { runCatching { refreshHousehold() } }
     }
@@ -303,9 +303,9 @@ object AppStore {
 
     /** True while the "Choose a new password" screen owns the UI (set by a recovery deep link). */
     var recoveryActive by mutableStateOf(false)
-        private set
+        internal set
     var recoveryEmail by mutableStateOf<String?>(null)
-        private set
+        internal set
     private var recoveryToken: String? = null
     private var recoveryVerified = false
 
@@ -424,7 +424,7 @@ object AppStore {
         return r
     }
 
-    suspend fun loadQuietRules(deviceId: Int) = guarded { TreeFortApi.quietHours(deviceId) }
+    suspend fun loadQuietRules(deviceId: Int) = if (ScreenFixture.active) Result.success(ScreenFixture.quietRules) else guarded { TreeFortApi.quietHours(deviceId) }
     suspend fun saveQuietRules(deviceId: Int, rules: List<QuietRule>) = guarded { TreeFortApi.saveQuietHours(deviceId, rules) }
 
     suspend fun addAddress(street1: String, street2: String?, city: String, state: String, zip: String, temporary: Boolean) =

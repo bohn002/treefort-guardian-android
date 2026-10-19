@@ -106,8 +106,8 @@ private const val SETTINGS_TAB = 3
 @Composable
 private fun MainScaffold() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    var tab by rememberSaveable { mutableIntStateOf(0) }
-    var subName by rememberSaveable { mutableStateOf<String?>(null) }
+    var tab by rememberSaveable { mutableIntStateOf(ScreenFixture.tab) }
+    var subName by rememberSaveable { mutableStateOf<String?>(ScreenFixture.sub) }
     var joining by remember { mutableStateOf(false) }
     var switching by remember { mutableStateOf(false) }
     val sub = subName?.let { runCatching { Sub.valueOf(it) }.getOrNull() }
@@ -117,7 +117,7 @@ private fun MainScaffold() {
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { GuardianLock.relock() }
     LaunchedEffect(tab, sub) { if (tab != SETTINGS_TAB && (sub == null || sub == Sub.Help)) GuardianLock.relock() }
 
-    val locked = GuardianLock.isSet(ctx) && !GuardianLock.unlocked
+    val locked = ScreenFixture.at("auth-guardian-lock") || (GuardianLock.isSet(ctx) && !GuardianLock.unlocked)
 
     @Composable
     fun Gated(content: @Composable () -> Unit) {

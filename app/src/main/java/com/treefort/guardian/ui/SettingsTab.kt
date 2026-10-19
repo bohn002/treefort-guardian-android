@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import com.treefort.guardian.AppConfig
 import com.treefort.guardian.AppPrefs
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.BuildConfig
 import com.treefort.guardian.GuardianLock
 import com.treefort.guardian.MessageKind
@@ -53,13 +54,13 @@ fun SettingsTab(onOpen: (Sub) -> Unit) {
     val ctx = rememberContext()
     val scope = rememberCoroutineScope()
     val h = AppStore.selected
-    var joining by remember { mutableStateOf(false) }
+    var joining by remember { mutableStateOf(ScreenFixture.at("settings-household-accept-invite")) }
     var renaming by remember { mutableStateOf(false) }
-    var addingAddress by remember { mutableStateOf(false) }
-    var settingPin by remember { mutableStateOf(false) }
+    var addingAddress by remember { mutableStateOf(ScreenFixture.at("settings-modal-add-address")) }
+    var settingPin by remember { mutableStateOf(ScreenFixture.at("settings-modal-guardian-lock-pin")) }
     var pinSet by remember { mutableStateOf(GuardianLock.isSet(ctx)) }
     var removePin by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(ScreenFixture.at("settings-modal-delete-account")) }
     var quietFor by remember { mutableStateOf<Device?>(null) }
     val online by WebRTCManager.isOnline.collectAsState()
 

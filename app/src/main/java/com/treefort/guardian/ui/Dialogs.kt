@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.MessageKind
 import com.treefort.guardian.api.Address
 import com.treefort.guardian.api.Device
@@ -91,6 +92,7 @@ fun QuietHoursDialog(device: Device, onDismiss: () -> Unit) {
         AppStore.loadQuietRules(device.id)
             .onSuccess { rules.clear(); rules.addAll(it) }
             .onFailure { error = it.errorText }
+        if (ScreenFixture.at("modal-add-rule")) rules.add(QuietRule(name = "Bedtime", enabled = true, days = WEEKDAYS, startTime = "20:00", endTime = "07:00"))
         loading = false
     }
 

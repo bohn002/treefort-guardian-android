@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.api.AuditEntry
 import com.treefort.guardian.api.CallLogEntry
 import com.treefort.guardian.theme.Ink
@@ -25,7 +26,7 @@ private val S = TreeFortTokens.Space
 /** Logbook: real call history (`GET /api/calls`) and the household activity feed (`GET /api/audit-logs`). */
 @Composable
 fun LogbookTab() {
-    var section by rememberSaveable { mutableIntStateOf(0) }
+    var section by rememberSaveable { mutableIntStateOf(if (ScreenFixture.at("logbook-safety", "logbook-safety-empty")) 1 else 0) }
     ScreenColumn {
         SectionTitle("Logbook")
         if (!AppStore.isManager) {
