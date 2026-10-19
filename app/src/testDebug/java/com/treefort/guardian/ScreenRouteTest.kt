@@ -15,7 +15,8 @@ class ScreenRouteTest {
     @Test fun unknownOrMissingIdIsNull() {
         assertNull(ScreenRoute.parse(null))
         assertNull(ScreenRoute.parse("../../etc"))
-        assertNull(ScreenRoute.parse("station-device-menu"))
+        assertNull(ScreenRoute.parse("station-recent-calls"))
+        assertNotNull(ScreenRoute.parse("station-device-menu"))
     }
 
     @Test fun signedOutIdsNeverReachTheApp() {

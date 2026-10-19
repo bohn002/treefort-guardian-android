@@ -55,6 +55,7 @@ data class ScreenRoute(
             "station-home" to ScreenRoute(),
             "station-quiet-hours-expanded" to ScreenRoute(),
             "station-phones" to ScreenRoute(),
+            "station-device-menu" to ScreenRoute(),
             "station-no-phones" to ScreenRoute(noPhones = true),
             "station-trip-active" to ScreenRoute(trip = true),
             "station-caller-home" to ScreenRoute(role = "caller"),

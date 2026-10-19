@@ -7,6 +7,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Slider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import com.treefort.guardian.theme.upper
+import com.treefort.guardian.QuietSummary
+import com.treefort.guardian.api.QuietRule
+import com.treefort.guardian.theme.BorderInk
+import com.treefort.guardian.theme.ColorPrimaryBlue
+import com.treefort.guardian.theme.InfoPale
+import com.treefort.guardian.theme.LinkColor
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +67,7 @@ fun TreeFortTab(onOpenTrips: () -> Unit, onOpenCampfire: () -> Unit, onOpenJoin:
 
     ScreenColumn {
         when {
-            h == null -> FirstRunCard(onClaim = { claiming = true }, onJoin = onOpenJoin)
+            h == null -> OnboardingCards(onClaim = { claiming = true }, onJoin = onOpenJoin)
             !h.isManager -> CallerHome()
             else -> {
                 val active = AppStore.trips.firstOrNull { it.status == "active" }
@@ -58,40 +78,47 @@ fun TreeFortTab(onOpenTrips: () -> Unit, onOpenCampfire: () -> Unit, onOpenJoin:
                         action = { TactileButton("Trips", onOpenTrips, backgroundColor = CardBg) },
                     )
                 }
-                CampfireCard(onOpenCampfire)
-                SectionTitle("TreeFort phones", trailing = {
-                    TactileButton("Add", { claiming = true }, backgroundColor = ColorSafeGreen, icon = Ph.Plus)
-                })
                 if (AppStore.devices.isEmpty()) {
-                    TactileCard {
-                        EmptyState(
-                            Ph.Phone, "No TreeFort phone yet",
-                            "Plug in your TreeFort phone, wait for the phone's chime, then enter the code it gives you.",
-                            action = { TactileButton("Add a TreeFort phone", { claiming = true }, backgroundColor = ColorSafeGreen) },
-                        )
-                    }
+                    OnboardingCards(onClaim = { claiming = true }, onJoin = onOpenJoin)
+                } else {
+                    AppStore.devices.forEach { d -> PhoneCard(d) }
+                    CampfireCard(onOpenCampfire)
+                    TactileButton("Add a TreeFort phone", { claiming = true }, Modifier.fillMaxWidth(), backgroundColor = CardBg, icon = Ph.Plus)
                 }
-                AppStore.devices.forEach { d -> PhoneCard(d) }
             }
         }
     }
     if (claiming) ClaimDialog { claiming = false }
 }
 
+/** First-run help for an account with no household or no phone yet (same cards and copy as iOS). */
 @Composable
-private fun FirstRunCard(onClaim: () -> Unit, onJoin: () -> Unit) {
-    SectionTitle("Welcome to TreeFort")
+private fun OnboardingCards(onClaim: () -> Unit, onJoin: () -> Unit) {
+    var phrase by remember { mutableStateOf(false) }
+    EmptyState(Ph.Phone, "Let's set up TreeFort", "Add a TreeFort phone for your child, or join a family that already uses TreeFort.")
+    OnboardingCard(Ph.ClaimCode, "Add a TreeFort phone", "Plug in your TreeFort phone, wait for the phone's chime, then enter the code.") {
+        TactileButton("Enter claim code", onClaim, Modifier.fillMaxWidth(), backgroundColor = ColorSafeGreen, icon = Ph.ClaimCode)
+    }
+    OnboardingCard(Ph.UsersThree, "Join as a co-guardian", "Another guardian can invite you to share their household. Enter the invite code they send you.") {
+        TactileButton("Enter invite code", onJoin, Modifier.fillMaxWidth(), icon = Ph.AddPerson)
+    }
+    OnboardingCard(Ph.Link, "I have a friend phrase", "Got three words and a number from another family, like cedar-bear-412? Enter it to connect with them.") {
+        TactileButton("Enter phrase", { phrase = true }, Modifier.fillMaxWidth(), backgroundColor = PillBg, icon = Ph.Link)
+    }
+    if (phrase) AcceptInviteDialog { phrase = false }
+}
+
+@Composable
+private fun OnboardingCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String, action: @Composable () -> Unit) {
     TactileCard {
-        EmptyState(
-            Ph.Phone, "Set up your first TreeFort phone",
-            "Plug it in, wait for the phone's chime, then enter the code it gives you.",
-            action = {
-                Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
-                    TactileButton("Add a TreeFort phone", onClaim, Modifier.fillMaxWidth(), backgroundColor = ColorSafeGreen, icon = Ph.Plus)
-                    TactileButton("I have an invite code", onJoin, Modifier.fillMaxWidth(), backgroundColor = PillBg, icon = Ph.AddPerson)
-                }
-            },
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Sm)) {
+                Icon(icon, null, tint = Ink, modifier = Modifier.size(24.dp))
+                Text(title, style = Tf.title, color = Ink)
+            }
+            Text(body, style = Tf.body, color = MutedText)
+            action()
+        }
     }
 }
 
@@ -129,66 +156,106 @@ private fun PhoneCard(d: Device) {
     val first = ScreenFixture.active && d.id == AppStore.devices.firstOrNull()?.id
     var quiet by remember { mutableStateOf(first && ScreenFixture.at("station-quiet-hours-expanded", "modal-add-rule")) }
     var picking by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(first && ScreenFixture.at("station-device-menu")) }
+    var rules by remember(d.id) { mutableStateOf<List<QuietRule>>(emptyList()) }
+    var quietTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(d.id, quietTick) { AppStore.loadQuietRules(d.id).onSuccess { rules = it } }
     var releasing by remember { mutableStateOf(first && ScreenFixture.at("modal-remove-phone", "settings-modal-release-phone")) }
     var releaseError by remember { mutableStateOf<String?>(null) }
     var volume by remember(d.id, d.volumeLevel) { mutableFloatStateOf(d.volumeLevel.toFloat()) }
     val address = AppStore.addresses.firstOrNull { it.id == d.e911AddressId }
-    val online by WebRTCManager.isOnline.collectAsState()
+    val online = WebRTCManager.isOnline.collectAsState().value || ScreenFixture.active
 
     TactileCard {
         Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Md)) {
-                PhosphorAvatar("phone-call", "primary-blue", d.name)
-                Column(Modifier.weight(1f)) {
-                    Text(d.name, style = Tf.title, color = Ink)
-                    Text(d.peerDialCode ?: "Setting up", style = Tf.numericSm, color = MutedText)
-                    Text(
-                        if (d.isOnline) "Online" else d.lastSeen?.let { "Last seen " + formatWhen(it) } ?: "Offline",
-                        style = Tf.bodySm, color = MutedText,
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Sm)) {
+                    Text(d.name, style = Tf.titleLg, color = Ink, modifier = Modifier.weight(1f, fill = false))
+                    StatusDot(d.isOnline)
+                    Text(upper(if (d.isOnline) "Online" else "Offline"), style = Tf.labelSm, color = MutedText)
                 }
-                StatusDot(d.isOnline)
+                Box {
+                    IconButton({ menu = true }, Modifier.size(48.dp)) { Icon(Ph.More, "More for ${d.name}", tint = Ink) }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Column { Text("Emergency address", style = Tf.bodyStrong, color = Ink); Text(address?.oneLine ?: "No address saved for this phone.", style = Tf.bodySm, color = MutedText) } },
+                            leadingIcon = { Icon(Ph.Pin, null, tint = Ink) },
+                            onClick = { menu = false; picking = true },
+                        )
+                        if (!d.isOnline) d.lastSeen?.let {
+                            DropdownMenuItem(text = { Text("Last seen " + formatWhen(it), style = Tf.bodySm, color = MutedText) }, onClick = {}, enabled = false)
+                        }
+                        if (AppStore.isOwner) DropdownMenuItem(
+                            text = { Text("Remove this phone", style = Tf.bodyStrong, color = Ink) },
+                            leadingIcon = { Icon(Ph.Trash, null, tint = Ink) },
+                            onClick = { menu = false; releasing = true },
+                        )
+                    }
+                }
             }
             if (d.appliedTripId != null) RoleChip("On vacation settings", ColorWarningYellow)
 
-            if (d.peerDialCode != null) {
+            d.peerDialCode?.let { number ->
+                Column(
+                    Modifier.fillMaxWidth().background(PillBg, RoundedCornerShape(TreeFortTokens.Radius.Md))
+                        .border(TreeFortTokens.Border.Std, BorderInk, RoundedCornerShape(TreeFortTokens.Radius.Md)).padding(S.Md),
+                    verticalArrangement = Arrangement.spacedBy(S.Xs),
+                ) {
+                    FieldLabel("TreeFort number")
+                    Text(number, style = Tf.numericXl, color = LinkColor)
+                }
                 TactileButton(
-                    "Call ${d.name}", { AppStore.placeCall(d.peerDialCode, d.name, "phone-call", "primary-blue") },
-                    Modifier.fillMaxWidth(), backgroundColor = ColorSafeGreen, icon = Ph.Call, enabled = d.isOnline && online,
+                    "Call ${d.name}", { AppStore.placeCall(number, d.name, "phone-call", "primary-blue") },
+                    Modifier.fillMaxWidth(), backgroundColor = if (d.isOnline && online) ColorSafeGreen else PillBg, icon = Ph.Call, enabled = d.isOnline && online,
+                )
+                if (!d.isOnline) Text("This phone is offline right now.", style = Tf.caption, color = MutedText)
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(S.Xs)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Sm)) {
+                    Icon(Ph.Speaker, null, tint = Ink, modifier = Modifier.size(20.dp))
+                    Text("Volume", style = Tf.bodyStrong, color = Ink, modifier = Modifier.weight(1f))
+                    Text("${volume.toInt()}%", style = Tf.numericSm, color = MutedText)
+                }
+                Slider(
+                    value = volume, onValueChange = { volume = it },
+                    onValueChangeFinished = {
+                        scope.launch { AppStore.setVolume(d.id, volume.toInt()).onFailure { AppStore.say(it.errorText, MessageKind.Danger); volume = d.volumeLevel.toFloat() } }
+                    },
+                    valueRange = 0f..100f,
+                    colors = SliderDefaults.colors(thumbColor = CardBg, activeTrackColor = ColorPrimaryBlue, inactiveTrackColor = PillBg),
+                    modifier = Modifier.semantics { contentDescription = "Volume for ${d.name}, ${volume.toInt()} percent" },
                 )
             }
 
             Divider()
-            FieldLabel("Phone volume")
-            Slider(
-                value = volume, onValueChange = { volume = it },
-                onValueChangeFinished = {
-                    scope.launch { AppStore.setVolume(d.id, volume.toInt()).onFailure { AppStore.say(it.errorText, MessageKind.Danger); volume = d.volumeLevel.toFloat() } }
-                },
-                valueRange = 0f..100f,
-                colors = SliderDefaults.colors(thumbColor = Ink, activeTrackColor = ColorSafeGreen, inactiveTrackColor = PillBg),
-                modifier = Modifier.semantics { contentDescription = "Phone volume ${volume.toInt()} percent" },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Sm)) {
+                Icon(Ph.QuietHours, null, tint = Ink, modifier = Modifier.size(20.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Quiet Hours", style = Tf.bodyStrong, color = Ink)
+                    Text(QuietSummary.activeLabel(rules.count { it.enabled }), style = Tf.bodySm, color = MutedText)
+                }
+                TactilePill("Edit", onClick = { quiet = true }, icon = Ph.Edit, backgroundColor = InfoPale)
+            }
+            rules.take(3).forEach { r ->
+                Row(
+                    Modifier.fillMaxWidth().background(PillBg, RoundedCornerShape(TreeFortTokens.Radius.Md)).padding(S.Sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(QuietSummary.title(r), style = Tf.bodyStrong, color = if (r.enabled) Ink else MutedText)
+                        Text(QuietSummary.line(r), style = Tf.bodySm, color = MutedText)
+                    }
+                    StatusDot(r.enabled)
+                }
+            }
 
-            Divider()
-            FieldLabel("Emergency address (for upcoming E911)")
-            Text(address?.oneLine ?: "No address saved for this phone.", style = Tf.body, color = Ink)
             if (d.e911PendingReconfirmation) {
-                Banner(
-                    "This phone was away. Tell TreeFort where it is now.",
-                    kind = BannerKind.Warning,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(S.Md), modifier = Modifier.fillMaxWidth()) {
-                TactileButton(if (address == null) "Choose address" else "Change", { picking = true }, Modifier.weight(1f), backgroundColor = CardBg, icon = Ph.Pin)
-                TactileButton("Quiet Hours", { quiet = true }, Modifier.weight(1f), backgroundColor = CardBg, icon = Ph.QuietHours)
-            }
-            if (AppStore.isOwner) {
-                TactileButton("Remove this phone", { releasing = true }, Modifier.fillMaxWidth(), backgroundColor = PillBg, icon = Ph.Trash)
+                Banner("This phone was away. Tell TreeFort where it is now (menu, Emergency address).", kind = BannerKind.Warning)
             }
         }
     }
-    if (quiet) QuietHoursDialog(d) { quiet = false }
+    if (quiet) QuietHoursDialog(d) { quiet = false; quietTick++ }
     if (picking) AddressPickerDialog(d) { picking = false }
     if (releasing) {
         ConfirmDialog(

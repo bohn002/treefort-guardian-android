@@ -38,6 +38,8 @@ import com.adamglin.phosphoricons.bold.Campfire
 import com.adamglin.phosphoricons.bold.CaretRight
 import com.adamglin.phosphoricons.bold.Check
 import com.adamglin.phosphoricons.bold.Copy
+import com.adamglin.phosphoricons.bold.DotsThreeVertical
+import com.adamglin.phosphoricons.bold.Link
 import com.adamglin.phosphoricons.bold.Eye
 import com.adamglin.phosphoricons.bold.EyeSlash
 import com.adamglin.phosphoricons.bold.GearSix
@@ -143,6 +145,8 @@ object Ph {
     val Warning = PhosphorIcons.Bold.Warning
     val Info = PhosphorIcons.Bold.Info
     val Help = PhosphorIcons.Bold.Question
+    val More = PhosphorIcons.Bold.DotsThreeVertical
+    val Link = PhosphorIcons.Bold.Link
     val Share = PhosphorIcons.Bold.Share
     val Copy = PhosphorIcons.Bold.Copy
     val Travel = PhosphorIcons.Bold.Airplane

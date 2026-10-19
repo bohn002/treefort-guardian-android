@@ -28,16 +28,18 @@ private val S = TreeFortTokens.Space
 fun CampfireCard(onOpen: () -> Unit) {
     val st by CampfireManager.state.collectAsState()
     TactileCard {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Md)) {
-            PhosphorAvatar("campfire", "warning-yellow", "Campfire")
-            Column(Modifier.weight(1f)) {
-                Text("Campfire", style = Tf.title, color = Ink)
-                Text(
-                    if (st.inRoom) "You're in the room" else "Talk with all the household's phones at once",
-                    style = Tf.bodySm, color = MutedText,
-                )
+        Column(verticalArrangement = Arrangement.spacedBy(S.Md)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Md)) {
+                PhosphorAvatar("campfire", "warning-yellow", "Campfire")
+                Column(Modifier.weight(1f)) {
+                    Text("Campfire", style = Tf.title, color = Ink)
+                    Text(
+                        if (st.inRoom) "You're in the room" else "A family party line for all your TreeFort phones. Anyone in the room hears everyone.",
+                        style = Tf.body, color = MutedText,
+                    )
+                }
             }
-            TactileButton(if (st.inRoom) "Open" else "Join", onOpen, backgroundColor = ColorSafeGreen, icon = Ph.Campfire)
+            TactileButton(if (st.inRoom) "Open the Campfire" else "Join the Campfire", onOpen, Modifier.fillMaxWidth(), backgroundColor = ColorSafeGreen, icon = Ph.Campfire)
         }
     }
 }

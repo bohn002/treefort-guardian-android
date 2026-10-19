@@ -26,7 +26,7 @@ IDS=(
 auth-verifying auth-sign-in auth-sign-in-error auth-sign-in-provider-not-set-up auth-create-account
 auth-create-account-error auth-check-email auth-email-code auth-email-code-verify auth-forgot-password
 auth-forgot-password-sent auth-reset-password auth-reset-password-error auth-provider-error auth-certify-18
-auth-guardian-lock station-home station-quiet-hours-expanded station-phones:900 station-no-phones
+auth-guardian-lock station-home station-quiet-hours-expanded station-device-menu station-phones:900 station-no-phones
 station-trip-active station-caller-home modal-pair-phone modal-add-rule modal-remove-phone friends-list
 friends-empty modal-add-friend-invite modal-add-friend-phrase modal-add-friend-number modal-edit-friend
 logbook-calls logbook-calls-empty logbook-safety logbook-safety-empty settings-top settings-household

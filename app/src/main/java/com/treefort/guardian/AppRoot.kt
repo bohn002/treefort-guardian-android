@@ -36,6 +36,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import com.treefort.guardian.theme.SuccessPale
+import com.treefort.guardian.theme.PillBg
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.treefort.guardian.theme.BorderInk
@@ -194,7 +198,17 @@ private fun TopBar(title: String?, onBack: (() -> Unit)?, onHelp: () -> Unit, on
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Md),
     ) {
         if (onBack != null) TactileButton("Back", onBack, backgroundColor = CardBg, icon = Ph.Back)
+        if (title == null) {
+            Box(
+                Modifier.size(40.dp).background(TreeFortTokens.Palette.WarningYellow, CircleShape).border(TreeFortTokens.Border.Std, BorderInk, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Ph.Call, null, tint = Ink, modifier = Modifier.size(22.dp)) }
+        }
         Text(title ?: "TreeFort", style = if (title == null) Tf.brand else Tf.title, color = Ink, modifier = Modifier.weight(1f), maxLines = 1)
+        if (title == null) {
+            val online = WebRTCManager.isOnline.collectAsState().value || ScreenFixture.active
+            TactilePill(if (online) "Online" else "Offline", backgroundColor = if (online) SuccessPale else PillBg, icon = null)
+        }
         if (title == null && AppStore.households.size > 1) {
             TactilePill(AppStore.selected?.name ?: "Household", onClick = onSwitch, icon = Ph.Home)
         }
