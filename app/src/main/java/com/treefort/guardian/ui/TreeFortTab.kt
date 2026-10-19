@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 import com.treefort.guardian.theme.upper
 import com.treefort.guardian.QuietSummary
+import com.treefort.guardian.DisplayClock
+import com.treefort.guardian.Fmt
 import com.treefort.guardian.api.QuietRule
 import com.treefort.guardian.theme.BorderInk
 import com.treefort.guardian.theme.ColorPrimaryBlue
@@ -183,7 +185,7 @@ private fun PhoneCard(d: Device) {
                             onClick = { menu = false; picking = true },
                         )
                         if (!d.isOnline) d.lastSeen?.let {
-                            DropdownMenuItem(text = { Text("Last seen " + formatWhen(it), style = Tf.bodySm, color = MutedText) }, onClick = {}, enabled = false)
+                            DropdownMenuItem(text = { Text("Last seen " + (parseInstant(it)?.let { t -> Fmt.relative(t, DisplayClock.now()) } ?: it), style = Tf.bodySm, color = MutedText) }, onClick = {}, enabled = false)
                         }
                         if (AppStore.isOwner) DropdownMenuItem(
                             text = { Text("Remove this phone", style = Tf.bodyStrong, color = Ink) },

@@ -51,7 +51,6 @@ fun FriendsTab() {
 
     ScreenColumn {
         if (!AppStore.isManager) {
-            SectionTitle("Friends")
             TactileCard {
                 EmptyState(
                     Ph.UsersThree, "Guardians manage Friends",
@@ -60,13 +59,12 @@ fun FriendsTab() {
                 )
             }
         } else {
-            SectionTitle("Friends")
-            Text("The Safelist: only the TreeFort numbers here can call the phones or be called by them.", style = Tf.body, color = MutedText)
+            Text("Only friends on your Safelist can call your TreeFort phones.", style = Tf.body, color = MutedText)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(S.Md)) {
-                TactileButton("Invite", { inviting = true }, Modifier.weight(1f), backgroundColor = ColorSafeGreen, icon = Ph.Share)
-                TactileButton("Add number", { adding = true }, Modifier.weight(1f), backgroundColor = ColorPrimaryBlue, icon = Ph.Plus)
+                TactileButton("Add", { adding = true }, Modifier.weight(1f), backgroundColor = ColorPrimaryBlue, icon = Ph.Plus)
+                TactileButton("Invite", { inviting = true }, Modifier.weight(1f), backgroundColor = ColorSafeGreen, icon = Ph.AddPerson)
             }
-            TactileButton("I have an invite code", { accepting = true }, Modifier.fillMaxWidth(), backgroundColor = CardBg, icon = Ph.AddPerson)
+            TactileButton("I have a phrase", { accepting = true }, Modifier.fillMaxWidth(), backgroundColor = CardBg, icon = Ph.Link)
 
             SpeedDialSummary()
 

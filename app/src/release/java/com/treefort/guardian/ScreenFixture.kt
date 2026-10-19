@@ -10,6 +10,6 @@ object ScreenFixture {
     val tab = 0
     val sub: String? = null
     val scrollPx = 0
-    fun apply(intent: Intent?) = false
+    fun apply(context: android.content.Context, intent: Intent?) = false
     fun at(vararg ids: String) = false
 }

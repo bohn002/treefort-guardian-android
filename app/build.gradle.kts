@@ -7,13 +7,16 @@ plugins {
 }
 
 android {
+    // Debug screen captures read the shared docs/fixtures/guardian.json (see ScreenFixture).
+    sourceSets.getByName("debug").assets.srcDir("../../docs/fixtures")
+
     namespace = "com.treefort.guardian"
     compileSdk = 36
     defaultConfig {
         applicationId = "com.treefort.guardian"
         minSdk = 24
         targetSdk = 36
-        versionCode = 58
+        versionCode = 121
         versionName = "0.1.0"
     }
 

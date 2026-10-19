@@ -19,5 +19,15 @@ object QuietSummary {
     }
 
     fun title(rule: QuietRule) = rule.name?.takeIf { it.isNotBlank() } ?: "Quiet Hours"
-    fun line(rule: QuietRule) = "${time(rule.startTime)} to ${time(rule.endTime)}, ${rule.days.joinToString(", ")}"
+    private val WEEK = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+
+    /** A run of 3+ consecutive days reads `Sun-Thu`; anything else lists the days. */
+    fun days(days: List<String>): String {
+        val idx = days.map { WEEK.indexOf(it) }
+        val run = idx.size >= 3 && idx.all { it >= 0 } && idx.zipWithNext().all { (a, b) -> b == a + 1 }
+        return if (run) "${days.first()}-${days.last()}" else days.joinToString(", ")
+    }
+
+    /** `Sun-Thu, 8:00 PM - 7:00 AM` (FORMATS.md). */
+    fun line(rule: QuietRule) = "${days(rule.days)}, ${time(rule.startTime)} - ${time(rule.endTime)}"
 }

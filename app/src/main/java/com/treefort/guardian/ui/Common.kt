@@ -54,6 +54,8 @@ import com.treefort.guardian.theme.PillBg
 import com.treefort.guardian.theme.Tf
 import com.treefort.guardian.theme.TreeFortTokens
 import java.time.Instant
+import com.treefort.guardian.DisplayClock
+import com.treefort.guardian.Fmt
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -240,10 +242,8 @@ fun parseInstant(iso: String): Instant? = runCatching {
     else LocalDateTime.parse(iso).toInstant(ZoneOffset.UTC)
 }.recoverCatching { ZonedDateTime.parse(iso).toInstant() }.getOrNull()
 
-fun formatWhen(iso: String, zone: ZoneId = ZoneId.systemDefault()): String =
-    parseInstant(iso)?.atZone(zone)?.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(Locale.getDefault())) ?: iso
-
-fun formatDuration(seconds: Int): String = if (seconds < 60) "${seconds}s" else "${seconds / 60}m ${seconds % 60}s"
+fun formatWhen(iso: String, zone: ZoneId = DisplayClock.zone()): String =
+    parseInstant(iso)?.let { Fmt.dateTime(it, zone) } ?: iso
 
 fun shareText(context: android.content.Context, subject: String, text: String) {
     val send = Intent(Intent.ACTION_SEND).apply {

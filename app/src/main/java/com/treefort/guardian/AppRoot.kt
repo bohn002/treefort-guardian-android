@@ -97,13 +97,13 @@ fun MainNavigation() {
     }
 }
 
-private class TabSpec(val label: String, val icon: ImageVector, val activeIcon: ImageVector, val fill: Color)
+private class TabSpec(val label: String, val icon: ImageVector, val activeIcon: ImageVector, val fill: TreeFortTokens.Fill, val activeFill: TreeFortTokens.Fill)
 
 private val TABS = listOf(
-    TabSpec("TreeFort", Ph.Phone, Ph.PhoneFill, TreeFortTokens.Palette.SafeGreen),
-    TabSpec("Friends", Ph.UsersThree, Ph.UsersThreeFill, TreeFortTokens.Palette.PrimaryBlue),
-    TabSpec("Logbook", Ph.Logbook, Ph.LogbookFill, TreeFortTokens.Palette.WarningYellow),
-    TabSpec("Settings", Ph.Gear, Ph.GearFill, TreeFortTokens.Palette.RetroGrape),
+    TabSpec("TreeFort", Ph.Phone, Ph.PhoneFill, TreeFortTokens.Fills.SafeGreen, TreeFortTokens.Fills.GreenForest),
+    TabSpec("Friends", Ph.UsersThree, Ph.UsersThreeFill, TreeFortTokens.Fills.PrimaryBlue, TreeFortTokens.Fills.BlueDeep),
+    TabSpec("Logbook", Ph.Logbook, Ph.LogbookFill, TreeFortTokens.Fills.WarningYellow, TreeFortTokens.Fills.YellowAmber),
+    TabSpec("Settings", Ph.Gear, Ph.GearFill, TreeFortTokens.Fills.DangerRed, TreeFortTokens.Fills.RedCrimson),
 )
 private const val SETTINGS_TAB = 3
 
@@ -247,17 +247,18 @@ private fun HouseholdSwitcher(onDismiss: () -> Unit) {
 @Composable
 private fun TabButton(spec: TabSpec, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
     val shape = RoundedCornerShape(TreeFortTokens.Radius.Md)
+    val fill = if (selected) spec.activeFill else spec.fill
     Column(
         modifier
-            .background(if (selected) spec.fill else Color.Transparent, shape)
-            .then(if (selected) Modifier.border(TreeFortTokens.Border.Std, BorderInk, shape) else Modifier)
+            .background(fill.background, shape)
+            .border(TreeFortTokens.Border.Std, BorderInk, shape)
             .clickable(role = Role.Tab, onClick = onClick)
             .semantics { contentDescription = spec.label + if (selected) ", selected" else "" }
             .padding(vertical = S.Sm, horizontal = S.Xs),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(if (selected) spec.activeIcon else spec.icon, null, tint = if (selected) com.treefort.guardian.ui.onColorFor(spec.fill) else Ink, modifier = Modifier.width(24.dp))
-        Text(upper(spec.label), style = Tf.labelSm, color = if (selected) com.treefort.guardian.ui.onColorFor(spec.fill) else MutedText, maxLines = 1)
+        Icon(if (selected) spec.activeIcon else spec.icon, null, tint = fill.foreground, modifier = Modifier.width(24.dp))
+        Text(upper(spec.label), style = Tf.labelSm, color = fill.foreground, maxLines = 1)
     }
 }
 

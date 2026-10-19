@@ -13,6 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.treefort.guardian.AppStore
+import com.treefort.guardian.DisplayClock
+import com.treefort.guardian.Fmt
 import com.treefort.guardian.ScreenFixture
 import com.treefort.guardian.api.AuditEntry
 import com.treefort.guardian.api.CallLogEntry
@@ -28,7 +30,6 @@ private val S = TreeFortTokens.Space
 fun LogbookTab() {
     var section by rememberSaveable { mutableIntStateOf(if (ScreenFixture.at("logbook-safety", "logbook-safety-empty")) 1 else 0) }
     ScreenColumn {
-        SectionTitle("Logbook")
         if (!AppStore.isManager) {
             TactileCard { EmptyState(Ph.Logbook, "Guardians see the Logbook", "Calls and activity for the household are visible to its guardians.") }
             return@ScreenColumn
@@ -52,16 +53,15 @@ private fun CallsList() {
 private fun CallRow(c: CallLogEntry) {
     val contact = AppStore.contacts.firstOrNull { it.id == c.contactId }
     val device = AppStore.devices.firstOrNull { it.id == c.deviceId }
-    val inbound = c.direction.equals("inbound", ignoreCase = true) || c.direction.equals("incoming", ignoreCase = true)
     TactileCard(padding = S.Md) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(S.Md)) {
             PhosphorAvatar(contact?.avatarIcon, contact?.avatarColor ?: AvatarCatalog.defaultPreset((c.contactId ?: c.id).toString()), contact?.name ?: "Unknown caller")
             Column(Modifier.weight(1f)) {
                 Text(contact?.name ?: "Unknown caller", style = Tf.titleSm, color = Ink)
-                Text(if (inbound) "Called ${device?.name ?: "the phone"}" else "${device?.name ?: "The phone"} called them", style = Tf.bodySm, color = MutedText)
+                Text(Fmt.directionLine(c.direction, device?.name ?: "the phone"), style = Tf.bodySm, color = MutedText)
                 Text(formatWhen(c.timestamp), style = Tf.caption, color = MutedText)
             }
-            Text(if (c.durationSeconds > 0) formatDuration(c.durationSeconds) else "No answer", style = Tf.numericSm, color = Ink)
+            Text(Fmt.callDuration(c.direction, c.durationSeconds), style = Tf.numericSm, color = Ink)
         }
     }
 }
@@ -73,19 +73,25 @@ private fun ActivityList() {
         TactileCard { EmptyState(Ph.Logbook, "Nothing yet", "Changes to the Safelist, phones and household show up here, with who made them.") }
         return
     }
-    rows.sortedByDescending { parseInstant(it.timestamp) }.forEach { AuditRow(it) }
+    val zone = DisplayClock.zone(); val now = DisplayClock.now()
+    var lastDay: String? = null
+    rows.sortedByDescending { parseInstant(it.timestamp) }.forEach { a ->
+        val t = parseInstant(a.timestamp)
+        val day = t?.let { Fmt.dayHeader(it, now, zone) }
+        if (day != null && day != lastDay) { Text(day, style = Tf.bodyStrong, color = MutedText); lastDay = day }
+        AuditRow(a, t?.let { Fmt.time(it, zone) } ?: a.timestamp)
+    }
 }
 
 @Composable
-private fun AuditRow(a: AuditEntry) {
+private fun AuditRow(a: AuditEntry, time: String) {
     TactileCard(padding = S.Md) {
         Column(verticalArrangement = Arrangement.spacedBy(S.Xs)) {
             Text(a.summary, style = Tf.titleSm, color = Ink)
             a.details?.takeIf { it.isNotBlank() }?.let { Text(it, style = Tf.bodySm, color = MutedText) }
-            val who = listOfNotNull(a.actorName, a.actorRole?.replaceFirstChar { it.uppercase() }).joinToString(", ")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatWhen(a.timestamp), style = Tf.caption, color = MutedText)
-                if (who.isNotBlank()) Text(who, style = Tf.caption, color = MutedText)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(listOfNotNull(a.actorName, time).joinToString(" - "), style = Tf.caption, color = MutedText)
+                a.actorRole?.takeIf { it.isNotBlank() }?.let { RoleChip(it.replaceFirstChar { c -> c.uppercase() }) }
             }
         }
     }

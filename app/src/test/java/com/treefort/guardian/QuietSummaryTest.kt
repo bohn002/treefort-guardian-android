@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class QuietSummaryTest {
-    private val rule = QuietRule("r1", "School nights", true, listOf("Sun", "Mon", "Thu"), "20:00", "07:00")
+    private val rule = QuietRule("r1", "School nights", true, listOf("Sun", "Mon", "Tue", "Wed", "Thu"), "20:00", "07:00")
 
     @Test fun `active label matches iOS`() {
         assertEquals("No schedules yet", QuietSummary.activeLabel(0))
@@ -22,7 +22,9 @@ class QuietSummaryTest {
     }
 
     @Test fun `rule line and title`() {
-        assertEquals("8:00 PM to 7:00 AM, Sun, Mon, Thu", QuietSummary.line(rule))
+        assertEquals("Sun-Thu, 8:00 PM - 7:00 AM", QuietSummary.line(rule))
+        assertEquals("Mon, Wed", QuietSummary.days(listOf("Mon", "Wed")))
+        assertEquals("Sat, Sun, Mon", QuietSummary.days(listOf("Sat", "Sun", "Mon")))
         assertEquals("School nights", QuietSummary.title(rule))
         assertEquals("Quiet Hours", QuietSummary.title(rule.copy(name = null)))
     }
